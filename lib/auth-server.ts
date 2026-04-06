@@ -1,5 +1,5 @@
 import { hash, compare } from "bcryptjs";
-import { getDbExecutor } from "@/lib/db";
+import { getDbExecutor } from "@/lib/db-server";
 
 const BCRYPT_ROUNDS = 12;
 
@@ -28,13 +28,13 @@ export async function createUserWithEmailAndPassword(
     );
 
     return {
-      id: (result as any).id,
+      id: (result as { lastID: number }).lastID,
       email,
       role,
       fullName,
     };
-  } catch (error: any) {
-    if (error.message.includes("UNIQUE")) {
+  } catch (error: unknown) {
+    if (error instanceof Error && error.message.includes("UNIQUE")) {
       throw new Error("البريد الإلكتروني مسجل مسبقاً");
     }
     throw error;
