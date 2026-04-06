@@ -1,26 +1,101 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --color-background: #f4efe8;
+  --color-surface: rgba(255, 250, 245, 0.88);
+  --color-surface-strong: #efe1d0;
+  --color-surface-alt: #e4d0b9;
+  --color-ink: #171717;
+  --color-muted: #64574b;
+  --color-border: rgba(35, 24, 19, 0.09);
+  --color-accent: #d66b42;
+  --color-accent-strong: #a9482c;
+  --color-accent-soft: rgba(214, 107, 66, 0.12);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-background: var(--color-background);
+  --color-foreground: var(--color-ink);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  background: #f4efe8;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+  min-height: 100vh;
+  color: var(--color-ink);
+  font-family: var(--font-geist-sans), sans-serif;
+  background:
+    radial-gradient(circle at top left, rgba(214, 107, 66, 0.16), transparent 28%),
+    radial-gradient(circle at top right, rgba(16, 106, 100, 0.11), transparent 26%),
+    radial-gradient(circle at 50% 120%, rgba(35, 24, 19, 0.08), transparent 36%),
+    linear-gradient(180deg, #fdf8f2 0%, #f4efe8 47%, #ede5db 100%);
+  overscroll-behavior-y: none;
+  -webkit-tap-highlight-color: transparent;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+input,
+button,
+select,
+textarea {
+  font: inherit;
+}
+
+.safe-area-top {
+  padding-top: env(safe-area-inset-top, 0);
+}
+
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.app-shell {
+  position: relative;
+}
+
+.glass-panel {
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  background: linear-gradient(180deg, rgba(255, 251, 247, 0.92), rgba(255, 247, 240, 0.78));
+  box-shadow: 0 28px 70px -42px rgba(29, 23, 19, 0.38);
+  backdrop-filter: blur(16px);
+}
+
+.night-panel {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(180deg, rgba(18, 22, 29, 0.98), rgba(23, 29, 40, 0.96));
+  box-shadow: 0 30px 70px -44px rgba(0, 0, 0, 0.6);
+}
+
+.metric-card {
+  border: 1px solid var(--color-border);
+  background: rgba(255, 255, 255, 0.72);
+  border-radius: 1.5rem;
+  padding: 1.1rem;
+}
+
+.section-kicker {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--color-accent-strong);
+}
+
+::selection {
+  background: rgba(214, 107, 66, 0.2);
 }

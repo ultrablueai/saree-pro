@@ -1,8 +1,27 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+## Saree Pro
 
-## Getting Started
+Saree Pro is being built as a real multi-role delivery platform, not a static showcase.
 
-First, run the development server:
+Current repository focus:
+
+- local-first backend foundation
+- typed commerce and logistics models
+- premium frontend shell
+- gradual evolution into customer, merchant, driver, staff, and owner workspaces
+
+Important:
+
+- the large product vision discussed in planning is not fully implemented yet
+- the source of truth for current scope is the codebase plus the documents in [`docs/`](./docs)
+
+Start here:
+
+- [`docs/product-blueprint.md`](./docs/product-blueprint.md)
+- [`docs/implementation-phases.md`](./docs/implementation-phases.md)
+
+## Local Development
+
+Run the development server:
 
 ```bash
 npm run dev
@@ -14,23 +33,25 @@ pnpm dev
 bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Then open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Local data layer
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The app currently boots from a local SQLite database file:
 
-## Learn More
+- `prisma/dev.db`
 
-To learn more about Next.js, take a look at the following resources:
+It is initialized by:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- [`lib/sqlite.ts`](./lib/sqlite.ts)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Health check endpoint:
 
-## Deploy on Vercel
+- [`app/api/health/route.ts`](./app/api/health/route.ts)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Verification
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Validated recently with:
+
+- `npm run lint`
+- `npm run build`

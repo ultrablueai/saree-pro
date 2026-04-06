@@ -1,0 +1,306 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model AppUser {
+  id             String          @id @default(cuid())
+  email          String          @unique
+  role           String          @default("customer")
+  fullName       String
+  phone          String?
+  avatarUrl      String?
+  isActive       Boolean         @default(true)
+  passwordHash   String?
+  emailVerified  Boolean         @default(false)
+  emailVerifiedAt DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  addresses      Address[]
+  customerOrders Order[]         @relation("CustomerOrders")
+  merchant       Merchant?
+  driverProfile  DriverProfile?
+  auditLogs      AuditLog[]
+  reviews        Review[]
+  cartItems      ShoppingCart[]
+  notifications  Notification[]
+
+  @@index([email])
+  @@index([role])
+  @@index([isActive])
+  @@index([createdAt])
+}
+
+model Address {
+  id          String   @id @default(cuid())
+  userId      String
+  label       String?
+  street      String
+  building    String
+  floor       String?
+  apartment   String?
+  district    String?
+  city        String
+  notes       String?
+  latitude    Float?
+  longitude   Float?
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        AppUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orderUsages Order[]
+
+  @@index([userId])
+}
+
+model Merchant {
+  id                 String         @id @default(cuid())
+  ownerUserId        String         @unique
+  name               String
+  slug               String         @unique
+  description        String
+  phone              String
+  coverImageUrl      String?
+  logoUrl            String?
+  cuisineTags        String
+  deliveryFeeAmount  Int            @default(0)
+  minimumOrderAmount Int            @default(0)
+  currency           String         @default("SAR")
+  status             String         @default("draft")
+  rating             Float          @default(0)
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+  owner              AppUser        @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  hours              MerchantHour[]
+  categories         MenuCategory[]
+  menuItems          MenuItem[]
+  orders             Order[]
+  cartItems          ShoppingCart[]
+  reviews            Review[]
+
+  @@index([status])
+  @@index([rating])
+  @@index([createdAt])
+  @@index([slug])
+}
+
+model MerchantHour {
+  id         String   @id @default(cuid())
+  merchantId String
+  dayOfWeek  Int
+  opensAt    String
+  closesAt   String
+  isClosed   Boolean  @default(false)
+  merchant   Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@unique([merchantId, dayOfWeek])
+}
+
+model DriverProfile {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  vehicleType      String
+  licenseNumber    String?
+  isVerified       Boolean  @default(false)
+  availability     String   @default("offline")
+  currentLatitude  Float?
+  currentLongitude Float?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  user             AppUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deliveries       Order[]  @relation("DriverOrders")
+}
+
+model MenuCategory {
+  id         String     @id @default(cuid())
+  merchantId String
+  name       String
+  sortOrder  Int        @default(0)
+  createdAt  DateTime   @default(now())
+  merchant   Merchant   @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  items      MenuItem[]
+
+  @@unique([merchantId, name])
+}
+
+model MenuItem {
+  id            String      @id @default(cuid())
+  merchantId    String
+  categoryId    String?
+  name          String
+  description   String
+  imageUrl      String?
+  priceAmount   Int
+  currency      String      @default("SAR")
+  isAvailable   Boolean     @default(true)
+  optionGroups  String?
+  sortOrder     Int         @default(0)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  merchant      Merchant    @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  category      MenuCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  orderItems    OrderItem[]
+  cartItems     ShoppingCart[]
+
+  @@index([merchantId, isAvailable])
+}
+
+model Order {
+  id                    String        @id @default(cuid())
+  orderCode             String        @unique
+  customerId            String
+  merchantId            String
+  driverId              String?
+  deliveryAddressId     String
+  couponId              String?
+  status                String        @default("pending")
+  paymentMethod         String        @default("cash")
+  paymentStatus         String        @default("unpaid")
+  subtotalAmount        Int
+  deliveryFeeAmount     Int           @default(0)
+  discountAmount        Int           @default(0)
+  totalAmount           Int
+  currency              String        @default("SAR")
+  specialInstructions   String?
+  estimatedDeliveryTime DateTime?
+  confirmedAt           DateTime?
+  deliveredAt           DateTime?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  customer              AppUser       @relation("CustomerOrders", fields: [customerId], references: [id], onDelete: Restrict)
+  merchant              Merchant      @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  driver                DriverProfile? @relation("DriverOrders", fields: [driverId], references: [id], onDelete: SetNull)
+  deliveryAddress       Address       @relation(fields: [deliveryAddressId], references: [id], onDelete: Restrict)
+  coupon                Coupon?       @relation(fields: [couponId], references: [id], onDelete: SetNull)
+  items                 OrderItem[]
+  paymentTransactions   PaymentTransaction[]
+
+  @@index([customerId, status])
+  @@index([merchantId, status])
+  @@index([driverId, status])
+  @@index([createdAt])
+  @@index([status, createdAt])
+  @@index([totalAmount])
+}
+
+model OrderItem {
+  id                  String   @id @default(cuid())
+  orderId             String
+  menuItemId          String?
+  menuItemName        String
+  quantity            Int
+  unitPriceAmount     Int
+  totalPriceAmount    Int
+  selectedOptionsJson String?
+  specialInstructions String?
+  order               Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem            MenuItem? @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+}
+
+model PaymentTransaction {
+  id              String   @id @default(cuid())
+  orderId         String
+  provider        String
+  providerRef     String?
+  amount          Int
+  currency        String   @default("SAR")
+  status          String
+  processedAt     DateTime?
+  failureReason   String?
+  createdAt       DateTime @default(now())
+  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, status])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorUserId String?
+  action      String
+  entityType  String
+  entityId    String?
+  metaJson    String?
+  createdAt   DateTime @default(now())
+  actor       AppUser? @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([actorUserId, createdAt])
+}
+
+model ShoppingCart {
+  id          String   @id @default(cuid())
+  userId      String
+  merchantId  String
+  menuItemId  String
+  quantity    Int      @default(1)
+  specialInstructions String?
+  selectedOptionsJson String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        AppUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  merchant    Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  menuItem    MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, menuItemId])
+  @@index([userId])
+  @@index([merchantId])
+}
+
+model Review {
+  id          String   @id @default(cuid())
+  userId      String
+  merchantId  String
+  orderId     String   @unique
+  rating      Int
+  comment     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        AppUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  merchant    Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([merchantId])
+  @@index([orderId])
+}
+
+model Notification {
+  id          String   @id @default(cuid())
+  userId      String
+  title       String
+  message     String
+  type        String   @default("info")
+  isRead      Boolean  @default(false)
+  readAt      DateTime?
+  link        String?
+  createdAt   DateTime @default(now())
+  user        AppUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
+}
+
+model Coupon {
+  id               String   @id @default(cuid())
+  code             String   @unique
+  description      String?
+  discountType     String   @default("percentage") // percentage or fixed
+  discountValue    Int
+  minOrderAmount   Int      @default(0)
+  maxDiscountAmount Int?
+  usageLimit       Int?
+  usedCount        Int      @default(0)
+  validFrom        DateTime @default(now())
+  validUntil       DateTime?
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  orders           Order[]
+
+  @@index([code])
+  @@index([isActive])
+}
