@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { PwaBoot } from "@/components/PwaBoot";
+import { LocalizationProvider } from "@/hooks/useLocalization";
 import { appConfig } from "@/lib/app-config";
 import { getRequestI18n } from "@/lib/i18n-server";
 import "./globals.css";
@@ -53,11 +54,14 @@ export default async function RootLayout({
     <html
       lang={locale}
       dir={direction}
+      data-scroll-behavior="smooth"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-[var(--color-background)] text-[var(--color-ink)]">
-        <PwaBoot />
-        {children}
+        <LocalizationProvider defaultLang={locale === "ar" || locale === "tr" ? locale : "en"}>
+          <PwaBoot />
+          {children}
+        </LocalizationProvider>
       </body>
     </html>
   );

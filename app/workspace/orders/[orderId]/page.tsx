@@ -6,6 +6,7 @@ import {
   openOrderDispute,
   resolveOrderDispute,
 } from "@/app/workspace/order-detail-actions";
+import ReviewForm from "@/app/workspace/orders/[orderId]/review-form";
 import { Button } from "@/components/Button";
 import { MobileBottomNav } from "@/components/MobileBottomNav";
 import { StatusPill } from "@/components/StatusPill";
@@ -486,6 +487,41 @@ export default async function OrderDetailsPage({
             )}
           </article>
         </section>
+
+        {session.role === "customer" ? (
+          <section className="mt-6">
+            {details.existingReview ? (
+              <article className="glass-panel rounded-[1.8rem] p-6">
+                <h2 className="text-2xl font-semibold tracking-tight text-[var(--color-ink)]">
+                  Your review
+                </h2>
+                <div className="mt-5 rounded-[1.35rem] border border-[var(--color-border)] bg-white/80 p-5">
+                  <p className="text-lg font-semibold text-[var(--color-ink)]">
+                    {details.existingReview.rating}/5
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-[var(--color-muted)]">
+                    {details.existingReview.comment ?? "No comment left for this review."}
+                  </p>
+                  <p className="mt-3 text-xs uppercase tracking-[0.18em] text-[var(--color-muted)]">
+                    Submitted {formatDate(details.existingReview.createdAt, locale)}
+                  </p>
+                </div>
+              </article>
+            ) : details.canReview ? (
+              <article className="glass-panel rounded-[1.8rem] p-6">
+                <h2 className="text-2xl font-semibold tracking-tight text-[var(--color-ink)]">
+                  Rate this order
+                </h2>
+                <p className="mt-3 text-sm leading-6 text-[var(--color-muted)]">
+                  Delivered orders can now be rated directly from the order details page.
+                </p>
+                <div className="mt-5">
+                  <ReviewForm orderId={details.order.id} merchantId={details.merchant.id} />
+                </div>
+              </article>
+            ) : null}
+          </section>
+        ) : null}
       </div>
 
       <MobileBottomNav showOwner={session.ownerAccess || session.role === "admin"} />

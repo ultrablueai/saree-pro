@@ -145,7 +145,7 @@ export default function ForgotPasswordPage() {
           )}
 
           {/* Step 3: New Password */}
-          {step === 'password' && step !== 'code' && (
+          {step === 'password' && (
             <form onSubmit={handleResetPassword} className="space-y-4">
               <div>
                 <label htmlFor="newPassword" className="block text-sm font-medium text-[#4a3f37] mb-1">

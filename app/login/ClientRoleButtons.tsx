@@ -1,14 +1,10 @@
 "use client";
 
-import { useActionState } from "react";
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/Button";
-import { signInAsRole, type LoginState } from "@/app/login/actions";
+import { signInAsRole } from "@/app/login/actions";
 import type { UserRole } from "@/types";
-
-const initialState: LoginState = {
-  status: "idle",
-  message: "",
-};
 
 interface ClientRoleButtonsProps {
   labels: {
@@ -47,25 +43,25 @@ function buildRoleCards(labels: ClientRoleButtonsProps["labels"]): Array<{
 }
 
 export function ClientRoleButtons({ labels }: ClientRoleButtonsProps) {
-  const [state, action] = useActionState(signInAsRole, initialState);
+  const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
   const roleCards = buildRoleCards(labels);
 
   return (
     <div className="space-y-4">
-      {state.status === "error" ? (
+      {error ? (
         <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
-          {state.message}
+          {error}
         </div>
       ) : null}
 
       <div className="grid gap-4 md:grid-cols-3">
         {roleCards.map((card) => (
-          <form
+          <div
             key={card.role}
-            action={action}
             className="rounded-[1.5rem] border border-[var(--color-border)] bg-white/80 p-5 shadow-[0_18px_40px_-28px_rgba(28,25,23,0.35)]"
           >
-            <input type="hidden" name="role" value={card.role} />
             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--color-accent-strong)]">
               {card.role}
             </p>
@@ -75,10 +71,28 @@ export function ClientRoleButtons({ labels }: ClientRoleButtonsProps) {
             <p className="mt-3 text-sm leading-6 text-[var(--color-muted)]">
               {card.description}
             </p>
-            <Button type="submit" className="mt-6 w-full">
+            <Button
+              type="button"
+              disabled={isPending}
+              className="mt-6 w-full"
+              onClick={() => {
+                setError(null);
+                startTransition(async () => {
+                  const result = await signInAsRole(card.role);
+
+                  if (!result.success) {
+                    setError(result.error ?? "Unable to sign in.");
+                    return;
+                  }
+
+                  router.push("/workspace");
+                  router.refresh();
+                });
+              }}
+            >
               {labels.enterWorkspace}
             </Button>
-          </form>
+          </div>
         ))}
       </div>
     </div>

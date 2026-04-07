@@ -278,6 +278,251 @@ async function initializePostgresSchema(executor: DbExecutor) {
       created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
   `);
+
+  await executor.run(`
+    CREATE TABLE IF NOT EXISTS reviews (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+      merchant_id TEXT NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
+      order_id TEXT NOT NULL UNIQUE REFERENCES orders(id) ON DELETE CASCADE,
+      rating INTEGER NOT NULL,
+      comment TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  await executor.run(`
+    CREATE TABLE IF NOT EXISTS shopping_carts (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+      merchant_id TEXT NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
+      menu_item_id TEXT NOT NULL REFERENCES menu_items(id) ON DELETE CASCADE,
+      quantity INTEGER NOT NULL DEFAULT 1,
+      special_instructions TEXT,
+      selected_options_json TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (user_id, menu_item_id)
+    );
+  `);
+
+  await executor.run(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT 'info',
+      is_read BOOLEAN NOT NULL DEFAULT FALSE,
+      read_at TIMESTAMPTZ,
+      link TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  await executor.run(`
+    CREATE TABLE IF NOT EXISTS wallets (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL UNIQUE REFERENCES app_users(id) ON DELETE CASCADE,
+      balance DOUBLE PRECISION NOT NULL DEFAULT 0,
+      currency TEXT NOT NULL DEFAULT 'SAR',
+      is_default BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  await executor.run(`
+    CREATE TABLE IF NOT EXISTS wallet_transactions (
+      id TEXT PRIMARY KEY,
+      wallet_id TEXT NOT NULL REFERENCES wallets(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+      type TEXT NOT NULL,
+      amount DOUBLE PRECISION NOT NULL,
+      description TEXT NOT NULL,
+      category TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'completed',
+      metadata_json TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      completed_at TIMESTAMPTZ
+    );
+  `);
+
+  await executor.run(`
+    CREATE TABLE IF NOT EXISTS loyalty_points (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL UNIQUE REFERENCES app_users(id) ON DELETE CASCADE,
+      points INTEGER NOT NULL DEFAULT 0,
+      total_earned INTEGER NOT NULL DEFAULT 0,
+      total_spent INTEGER NOT NULL DEFAULT 0,
+      tier TEXT NOT NULL DEFAULT 'bronze',
+      next_tier_points INTEGER NOT NULL DEFAULT 500,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  await executor.run(`
+    CREATE TABLE IF NOT EXISTS loyalty_rewards (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL,
+      type TEXT NOT NULL,
+      value_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+      points_cost INTEGER NOT NULL,
+      tier TEXT NOT NULL DEFAULT 'all',
+      category TEXT NOT NULL DEFAULT 'general',
+      image_url TEXT,
+      valid_until TIMESTAMPTZ,
+      is_active BOOLEAN NOT NULL DEFAULT TRUE,
+      usage_limit INTEGER,
+      usage_count INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+}
+
+async function seedPostgresWalletData(executor: DbExecutor, now: string) {
+  const customer = await executor.get<{ id: string }>(
+    `SELECT id
+     FROM app_users
+     WHERE id = ?
+     LIMIT 1`,
+    ["user_customer_01"],
+  );
+
+  if (!customer) {
+    return;
+  }
+
+  await executor.run(
+    `INSERT INTO wallets (id, user_id, balance, currency, is_default, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT (id) DO NOTHING`,
+    ["wallet_customer_01", "user_customer_01", 186.5, "SAR", true, now, now],
+  );
+
+  await executor.run(
+    `INSERT INTO loyalty_points (
+      id, user_id, points, total_earned, total_spent, tier, next_tier_points, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (id) DO NOTHING`,
+    ["loyalty_customer_01", "user_customer_01", 320, 860, 540, "bronze", 500, now, now],
+  );
+
+  const rewardValidUntil = new Date(Date.now() + 1000 * 60 * 60 * 24 * 45).toISOString();
+
+  await executor.run(
+    `INSERT INTO loyalty_rewards (
+      id, title, description, type, value_amount, points_cost, tier, category,
+      image_url, valid_until, is_active, usage_limit, usage_count, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (id) DO NOTHING`,
+    [
+      "reward_wallet_01",
+      "Free delivery reward",
+      "Redeem for one free delivery on your next order.",
+      "free_delivery",
+      12,
+      150,
+      "all",
+      "delivery",
+      null,
+      rewardValidUntil,
+      true,
+      500,
+      18,
+      now,
+    ],
+  );
+
+  await executor.run(
+    `INSERT INTO loyalty_rewards (
+      id, title, description, type, value_amount, points_cost, tier, category,
+      image_url, valid_until, is_active, usage_limit, usage_count, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (id) DO NOTHING`,
+    [
+      "reward_wallet_02",
+      "SAR 20 cashback",
+      "Cashback reward credited after your next completed order.",
+      "cashback",
+      20,
+      300,
+      "bronze",
+      "general",
+      null,
+      rewardValidUntil,
+      true,
+      250,
+      42,
+      now,
+    ],
+  );
+
+  await executor.run(
+    `INSERT INTO wallet_transactions (
+      id, wallet_id, user_id, type, amount, description, category, status,
+      metadata_json, created_at, completed_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (id) DO NOTHING`,
+    [
+      "wallet_tx_01",
+      "wallet_customer_01",
+      "user_customer_01",
+      "credit",
+      225,
+      "Wallet top-up by card",
+      "deposit",
+      "completed",
+      '{"reference":"TOPUP-1001"}',
+      now,
+      now,
+    ],
+  );
+
+  await executor.run(
+    `INSERT INTO wallet_transactions (
+      id, wallet_id, user_id, type, amount, description, category, status,
+      metadata_json, created_at, completed_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (id) DO NOTHING`,
+    [
+      "wallet_tx_02",
+      "wallet_customer_01",
+      "user_customer_01",
+      "debit",
+      38.5,
+      "Order payment for SP-1001",
+      "order",
+      "completed",
+      '{"orderId":"order_01"}',
+      now,
+      now,
+    ],
+  );
+
+  await executor.run(
+    `INSERT INTO wallet_transactions (
+      id, wallet_id, user_id, type, amount, description, category, status,
+      metadata_json, created_at, completed_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (id) DO NOTHING`,
+    [
+      "wallet_tx_03",
+      "wallet_customer_01",
+      "user_customer_01",
+      "reward",
+      15,
+      "Loyalty bonus credit",
+      "reward",
+      "completed",
+      '{"bonusId":"LOYALTY-APR"}',
+      now,
+      now,
+    ],
+  );
 }
 
 async function seedPostgresDatabase(executor: DbExecutor) {
@@ -285,11 +530,12 @@ async function seedPostgresDatabase(executor: DbExecutor) {
     "SELECT COUNT(*)::int as count FROM app_users",
   );
 
+  const now = new Date().toISOString();
+
   if ((existingUsers?.count ?? 0) > 0) {
+    await seedPostgresWalletData(executor, now);
     return;
   }
-
-  const now = new Date().toISOString();
 
   await executor.run(
     `INSERT INTO app_users (id, email, role, full_name, phone, is_active, created_at, updated_at)
@@ -395,6 +641,14 @@ async function seedPostgresDatabase(executor: DbExecutor) {
      VALUES (?, ?, ?, ?, ?)`,
     ["cat_01", "merchant_01", "Best Sellers", 1, now],
   );
+
+  for (let dayOfWeek = 0; dayOfWeek <= 6; dayOfWeek += 1) {
+    await executor.run(
+      `INSERT INTO merchant_hours (id, merchant_id, day_of_week, opens_at, closes_at, is_closed)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [`merchant_hour_01_${dayOfWeek}`, "merchant_01", dayOfWeek, "10:00", "23:30", false],
+    );
+  }
 
   await executor.run(
     `INSERT INTO menu_items (
@@ -508,6 +762,38 @@ async function seedPostgresDatabase(executor: DbExecutor) {
       now,
     ],
   );
+
+  await executor.run(
+    `INSERT INTO notifications (id, user_id, title, message, type, is_read, link, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      randomUUID(),
+      "user_customer_01",
+      "Order confirmed",
+      "SP-1001 is confirmed and the kitchen has started processing it.",
+      "order",
+      false,
+      "/workspace/orders/order_01",
+      now,
+    ],
+  );
+
+  await executor.run(
+    `INSERT INTO notifications (id, user_id, title, message, type, is_read, link, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      randomUUID(),
+      "user_merchant_01",
+      "New order in queue",
+      "SP-1001 is waiting in your active kitchen queue.",
+      "order",
+      false,
+      "/workspace/orders/order_01",
+      now,
+    ],
+  );
+
+  await seedPostgresWalletData(executor, now);
 }
 
 async function ensurePostgresReady() {

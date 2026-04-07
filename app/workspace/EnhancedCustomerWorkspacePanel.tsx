@@ -101,6 +101,7 @@ function trackingIcon(completed: boolean) {
 export function EnhancedCustomerWorkspacePanel({ data, formatDate }: CustomerWorkspacePanelProps) {
   const [activeTab, setActiveTab] = useState<"orders" | "favorites" | "profile" | "notifications">("orders");
   const [selectedOrder, setSelectedOrder] = useState<string | null>(null);
+  const activeOrder = data.activeOrder;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -131,7 +132,7 @@ export function EnhancedCustomerWorkspacePanel({ data, formatDate }: CustomerWor
       </div>
 
       {/* Active Order Alert */}
-      {data.activeOrder && (
+      {activeOrder && (
         <div className="bg-blue-50 border-b border-blue-200">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
             <div className="flex items-center justify-between">
@@ -139,15 +140,15 @@ export function EnhancedCustomerWorkspacePanel({ data, formatDate }: CustomerWor
                 <span className="text-2xl">🚚</span>
                 <div>
                   <p className="font-semibold text-blue-900">
-                    Order {data.activeOrder.order_code} is on the way!
+                    Order {activeOrder.order_code} is on the way!
                   </p>
                   <p className="text-sm text-blue-700">
-                    Estimated delivery: {data.activeOrder.estimated_delivery}
+                    Estimated delivery: {activeOrder.estimated_delivery}
                   </p>
                 </div>
               </div>
               <button
-                onClick={() => setSelectedOrder(data.activeOrder.id)}
+                onClick={() => setSelectedOrder(activeOrder.id)}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
                 Track Order
@@ -195,17 +196,17 @@ export function EnhancedCustomerWorkspacePanel({ data, formatDate }: CustomerWor
         {activeTab === "orders" && (
           <div className="space-y-8">
             {/* Active Order Details */}
-            {data.activeOrder && selectedOrder === data.activeOrder.id && (
+            {activeOrder && selectedOrder === activeOrder.id && (
               <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
                 <div className="flex justify-between items-start mb-6">
                   <div>
                     <h2 className="text-xl font-semibold text-gray-900">
-                      Order {data.activeOrder.order_code}
+                      Order {activeOrder.order_code}
                     </h2>
-                    <p className="text-sm text-gray-600">{data.activeOrder.merchant_name}</p>
+                    <p className="text-sm text-gray-600">{activeOrder.merchant_name}</p>
                   </div>
-                  <span className={`px-3 py-1 text-sm font-medium rounded-full ${statusColor(data.activeOrder.status)}`}>
-                    {data.activeOrder.status}
+                  <span className={`px-3 py-1 text-sm font-medium rounded-full ${statusColor(activeOrder.status)}`}>
+                    {activeOrder.status}
                   </span>
                 </div>
 
@@ -213,7 +214,7 @@ export function EnhancedCustomerWorkspacePanel({ data, formatDate }: CustomerWor
                 <div className="mb-6">
                   <h3 className="text-lg font-medium text-gray-900 mb-4">Order Tracking</h3>
                   <div className="space-y-3">
-                    {data.activeOrder.tracking_steps.map((step, index) => (
+                    {activeOrder.tracking_steps.map((step, index) => (
                       <div key={step.step} className="flex items-center space-x-3">
                         <span className="text-xl">{trackingIcon(step.completed)}</span>
                         <div className="flex-1">
@@ -233,14 +234,14 @@ export function EnhancedCustomerWorkspacePanel({ data, formatDate }: CustomerWor
                 <div className="mb-6">
                   <h3 className="text-lg font-medium text-gray-900 mb-4">Order Items</h3>
                   <div className="space-y-2">
-                    {data.activeOrder.items.map((item, index) => (
+                    {activeOrder.items.map((item, index) => (
                       <div key={index} className="flex justify-between items-center py-2 border-b border-gray-100">
                         <div>
                           <p className="font-medium text-gray-900">{item.name}</p>
                           <p className="text-sm text-gray-500">Qty: {item.quantity}</p>
                         </div>
                         <p className="font-medium text-gray-900">
-                          {formatCurrency(item.price * item.quantity, data.activeOrder.currency)}
+                          {formatCurrency(item.price * item.quantity, activeOrder.currency)}
                         </p>
                       </div>
                     ))}
@@ -251,9 +252,9 @@ export function EnhancedCustomerWorkspacePanel({ data, formatDate }: CustomerWor
                 <div className="mb-6">
                   <h3 className="text-lg font-medium text-gray-900 mb-4">Delivery Information</h3>
                   <div className="bg-gray-50 rounded-lg p-4">
-                    <p className="font-medium text-gray-900">Driver: {data.activeOrder.driver_name}</p>
-                    <p className="text-sm text-gray-600">Phone: {data.activeOrder.driver_phone}</p>
-                    <p className="text-sm text-gray-600">Estimated: {data.activeOrder.estimated_delivery}</p>
+                    <p className="font-medium text-gray-900">Driver: {activeOrder.driver_name}</p>
+                    <p className="text-sm text-gray-600">Phone: {activeOrder.driver_phone}</p>
+                    <p className="text-sm text-gray-600">Estimated: {activeOrder.estimated_delivery}</p>
                   </div>
                 </div>
 

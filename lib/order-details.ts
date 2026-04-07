@@ -90,6 +90,13 @@ export interface OrderDetailData {
     createdAt: string;
     resolvedAt: string | null;
   }>;
+  existingReview: {
+    id: string;
+    rating: number;
+    comment: string | null;
+    createdAt: string;
+  } | null;
+  canReview: boolean;
   timeline: Array<{
     key: string;
     kind: "order" | "payment" | "delivery" | "dispute" | "finance";
@@ -433,6 +440,19 @@ export async function getOrderDetailsForSession(
     [orderId],
   );
 
+  const existingReview = await db.get<{
+    id: string;
+    rating: number;
+    comment: string | null;
+    created_at: string;
+  }>(
+    `SELECT id, rating, comment, created_at
+     FROM reviews
+     WHERE order_id = ?
+     LIMIT 1`,
+    [orderId],
+  );
+
   const auditLogs = await db.all<{ action: string; created_at: string }>(
     `SELECT action, created_at
      FROM audit_logs
@@ -454,7 +474,7 @@ export async function getOrderDetailsForSession(
             du.full_name AS driver_name,
             dp.availability,
             dp.vehicle_type,
-            COUNT(active_orders.id)::int AS active_order_count
+            CAST(COUNT(active_orders.id) AS INTEGER) AS active_order_count
          FROM driver_profiles dp
          INNER JOIN app_users du ON du.id = dp.user_id
          LEFT JOIN orders active_orders
@@ -587,6 +607,15 @@ export async function getOrderDetailsForSession(
       createdAt: entry.created_at,
       resolvedAt: entry.resolved_at,
     })),
+    existingReview: existingReview
+      ? {
+          id: existingReview.id,
+          rating: existingReview.rating,
+          comment: existingReview.comment,
+          createdAt: existingReview.created_at,
+        }
+      : null,
+    canReview: isCustomer && orderRow.status === "delivered" && !existingReview,
     timeline: buildTimeline(
       {
         id: orderRow.id,

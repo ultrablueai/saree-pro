@@ -114,5 +114,6 @@ export async function signInAsOwner(email: string, accessCode: string): Promise<
 
 export async function signOutAction(): Promise<void> {
   const cookieStore = await cookies();
+  cookieStore.delete('sareepro_session');
   cookieStore.delete('sareepro-session');
 }

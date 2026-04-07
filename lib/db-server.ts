@@ -24,15 +24,15 @@ export function getDbExecutor() {
   const database = getDatabase();
   
   return {
-    get: (sql: string, params?: any[]) => {
+    get: <T>(sql: string, params?: unknown[]) => {
       const stmt = database.prepare(sql);
-      return stmt.get(...(params || []));
+      return stmt.get(...(params || [])) as T | undefined;
     },
-    all: (sql: string, params?: any[]) => {
+    all: <T>(sql: string, params?: unknown[]) => {
       const stmt = database.prepare(sql);
-      return stmt.all(...(params || []));
+      return stmt.all(...(params || [])) as T[];
     },
-    run: (sql: string, params?: any[]) => {
+    run: (sql: string, params?: unknown[]) => {
       const stmt = database.prepare(sql);
       return stmt.run(...(params || []));
     }

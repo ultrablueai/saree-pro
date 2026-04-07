@@ -165,7 +165,7 @@ export class CacheService {
 
   // Statistics
   async getStats(): Promise<{memory?: string, keyspace?: string, connected: boolean, error?: unknown}> {
-    if (!this.client) return null
+    if (!this.client) return { connected: false, error: 'Redis client not initialized' }
     
     try {
       const info = await this.client.info('memory')

@@ -87,6 +87,89 @@ function initializeSchema() {
       FOREIGN KEY (ownerUserId) REFERENCES AppUser(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS app_users (
+      id TEXT PRIMARY KEY,
+      email TEXT NOT NULL UNIQUE,
+      role TEXT NOT NULL DEFAULT 'customer',
+      full_name TEXT NOT NULL,
+      phone TEXT,
+      avatar_url TEXT,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      password_hash TEXT,
+      email_verified INTEGER NOT NULL DEFAULT 0,
+      email_verified_at TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS addresses (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      label TEXT,
+      street TEXT NOT NULL,
+      building TEXT NOT NULL,
+      floor TEXT,
+      apartment TEXT,
+      district TEXT,
+      city TEXT NOT NULL,
+      notes TEXT,
+      latitude REAL,
+      longitude REAL,
+      is_default INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES app_users(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS merchants (
+      id TEXT PRIMARY KEY,
+      owner_user_id TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      slug TEXT NOT NULL UNIQUE,
+      description TEXT NOT NULL,
+      phone TEXT NOT NULL,
+      cover_image_url TEXT,
+      logo_url TEXT,
+      cuisine_tags TEXT NOT NULL,
+      delivery_fee_amount INTEGER NOT NULL DEFAULT 0,
+      minimum_order_amount INTEGER NOT NULL DEFAULT 0,
+      currency TEXT NOT NULL DEFAULT 'SAR',
+      status TEXT NOT NULL DEFAULT 'draft',
+      rating REAL NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (owner_user_id) REFERENCES app_users(id) ON DELETE CASCADE
+    );
+
+    INSERT OR IGNORE INTO app_users (
+      id, email, role, full_name, phone, avatar_url, is_active, password_hash,
+      email_verified, email_verified_at, created_at, updated_at
+    )
+    SELECT
+      id, email, role, fullName, phone, avatarUrl, isActive, passwordHash,
+      emailVerified, emailVerifiedAt, createdAt, updatedAt
+    FROM AppUser;
+
+    INSERT OR IGNORE INTO addresses (
+      id, user_id, label, street, building, floor, apartment, district, city, notes,
+      latitude, longitude, is_default, created_at, updated_at
+    )
+    SELECT
+      id, userId, label, street, building, floor, apartment, district, city, notes,
+      latitude, longitude, isDefault, createdAt, updatedAt
+    FROM Address;
+
+    INSERT OR IGNORE INTO merchants (
+      id, owner_user_id, name, slug, description, phone, cover_image_url, logo_url,
+      cuisine_tags, delivery_fee_amount, minimum_order_amount, currency, status, rating,
+      created_at, updated_at
+    )
+    SELECT
+      id, ownerUserId, name, slug, description, phone, coverImageUrl, logoUrl,
+      cuisineTags, deliveryFeeAmount, minimumOrderAmount, currency, status, rating,
+      createdAt, updatedAt
+    FROM Merchant;
+
     CREATE TABLE IF NOT EXISTS merchant_hours (
       id TEXT PRIMARY KEY,
       merchant_id TEXT NOT NULL,
@@ -237,7 +320,245 @@ function initializeSchema() {
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (actor_user_id) REFERENCES app_users(id) ON DELETE SET NULL
     );
+
+    CREATE TABLE IF NOT EXISTS reviews (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      merchant_id TEXT NOT NULL,
+      order_id TEXT NOT NULL UNIQUE,
+      rating INTEGER NOT NULL,
+      comment TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES app_users(id) ON DELETE CASCADE,
+      FOREIGN KEY (merchant_id) REFERENCES merchants(id) ON DELETE CASCADE,
+      FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS shopping_carts (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      merchant_id TEXT NOT NULL,
+      menu_item_id TEXT NOT NULL,
+      quantity INTEGER NOT NULL DEFAULT 1,
+      special_instructions TEXT,
+      selected_options_json TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES app_users(id) ON DELETE CASCADE,
+      FOREIGN KEY (merchant_id) REFERENCES merchants(id) ON DELETE CASCADE,
+      FOREIGN KEY (menu_item_id) REFERENCES menu_items(id) ON DELETE CASCADE,
+      UNIQUE (user_id, menu_item_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS notifications (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT 'info',
+      is_read INTEGER NOT NULL DEFAULT 0,
+      read_at TEXT,
+      link TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES app_users(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS wallets (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL UNIQUE,
+      balance REAL NOT NULL DEFAULT 0,
+      currency TEXT NOT NULL DEFAULT 'SAR',
+      is_default INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES app_users(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS wallet_transactions (
+      id TEXT PRIMARY KEY,
+      wallet_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      type TEXT NOT NULL,
+      amount REAL NOT NULL,
+      description TEXT NOT NULL,
+      category TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'completed',
+      metadata_json TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      completed_at TEXT,
+      FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES app_users(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS loyalty_points (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL UNIQUE,
+      points INTEGER NOT NULL DEFAULT 0,
+      total_earned INTEGER NOT NULL DEFAULT 0,
+      total_spent INTEGER NOT NULL DEFAULT 0,
+      tier TEXT NOT NULL DEFAULT 'bronze',
+      next_tier_points INTEGER NOT NULL DEFAULT 500,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES app_users(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS loyalty_rewards (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL,
+      type TEXT NOT NULL,
+      value_amount REAL NOT NULL DEFAULT 0,
+      points_cost INTEGER NOT NULL,
+      tier TEXT NOT NULL DEFAULT 'all',
+      category TEXT NOT NULL DEFAULT 'general',
+      image_url TEXT,
+      valid_until TEXT,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      usage_limit INTEGER,
+      usage_count INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
   `);
+}
+
+function seedWalletData(now: string) {
+  const customer = sqlite
+    .prepare("SELECT id FROM app_users WHERE id = ? LIMIT 1")
+    .get("user_customer_01") as { id: string } | undefined;
+
+  if (!customer) {
+    return;
+  }
+
+  sqlite
+    .prepare(
+      `INSERT OR IGNORE INTO wallets (
+        id, user_id, balance, currency, is_default, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run("wallet_customer_01", "user_customer_01", 186.5, "SAR", 1, now, now);
+
+  sqlite
+    .prepare(
+      `INSERT OR IGNORE INTO loyalty_points (
+        id, user_id, points, total_earned, total_spent, tier, next_tier_points, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(
+      "loyalty_customer_01",
+      "user_customer_01",
+      320,
+      860,
+      540,
+      "bronze",
+      500,
+      now,
+      now,
+    );
+
+  const insertReward = sqlite.prepare(`
+    INSERT OR IGNORE INTO loyalty_rewards (
+      id, title, description, type, value_amount, points_cost, tier, category,
+      image_url, valid_until, is_active, usage_limit, usage_count, created_at
+    ) VALUES (
+      @id, @title, @description, @type, @value_amount, @points_cost, @tier, @category,
+      @image_url, @valid_until, @is_active, @usage_limit, @usage_count, @created_at
+    )
+  `);
+
+  const insertTransaction = sqlite.prepare(`
+    INSERT OR IGNORE INTO wallet_transactions (
+      id, wallet_id, user_id, type, amount, description, category, status,
+      metadata_json, created_at, completed_at
+    ) VALUES (
+      @id, @wallet_id, @user_id, @type, @amount, @description, @category, @status,
+      @metadata_json, @created_at, @completed_at
+    )
+  `);
+
+  const rewardValidUntil = new Date(Date.now() + 1000 * 60 * 60 * 24 * 45).toISOString();
+
+  const transaction = sqlite.transaction(() => {
+    insertReward.run({
+      id: "reward_wallet_01",
+      title: "Free delivery reward",
+      description: "Redeem for one free delivery on your next order.",
+      type: "free_delivery",
+      value_amount: 12,
+      points_cost: 150,
+      tier: "all",
+      category: "delivery",
+      image_url: null,
+      valid_until: rewardValidUntil,
+      is_active: 1,
+      usage_limit: 500,
+      usage_count: 18,
+      created_at: now,
+    });
+
+    insertReward.run({
+      id: "reward_wallet_02",
+      title: "SAR 20 cashback",
+      description: "Cashback reward credited after your next completed order.",
+      type: "cashback",
+      value_amount: 20,
+      points_cost: 300,
+      tier: "bronze",
+      category: "general",
+      image_url: null,
+      valid_until: rewardValidUntil,
+      is_active: 1,
+      usage_limit: 250,
+      usage_count: 42,
+      created_at: now,
+    });
+
+    insertTransaction.run({
+      id: "wallet_tx_01",
+      wallet_id: "wallet_customer_01",
+      user_id: "user_customer_01",
+      type: "credit",
+      amount: 225,
+      description: "Wallet top-up by card",
+      category: "deposit",
+      status: "completed",
+      metadata_json: '{"reference":"TOPUP-1001"}',
+      created_at: now,
+      completed_at: now,
+    });
+
+    insertTransaction.run({
+      id: "wallet_tx_02",
+      wallet_id: "wallet_customer_01",
+      user_id: "user_customer_01",
+      type: "debit",
+      amount: 38.5,
+      description: "Order payment for SP-1001",
+      category: "order",
+      status: "completed",
+      metadata_json: '{"orderId":"order_01"}',
+      created_at: now,
+      completed_at: now,
+    });
+
+    insertTransaction.run({
+      id: "wallet_tx_03",
+      wallet_id: "wallet_customer_01",
+      user_id: "user_customer_01",
+      type: "reward",
+      amount: 15,
+      description: "Loyalty bonus credit",
+      category: "reward",
+      status: "completed",
+      metadata_json: '{"bonusId":"LOYALTY-APR"}',
+      created_at: now,
+      completed_at: now,
+    });
+  });
+
+  transaction();
 }
 
 function seedDatabase() {
@@ -245,11 +566,13 @@ function seedDatabase() {
     .prepare("SELECT COUNT(*) as count FROM app_users")
     .get() as { count: number };
 
+  const now = new Date().toISOString();
+
   if (existingUsers.count > 0) {
+    seedWalletData(now);
     return;
   }
 
-  const now = new Date().toISOString();
   const insertUser = sqlite.prepare(`
     INSERT INTO app_users (id, email, role, full_name, phone, is_active, created_at, updated_at)
     VALUES (@id, @email, @role, @full_name, @phone, @is_active, @created_at, @updated_at)
@@ -276,6 +599,14 @@ function seedDatabase() {
   const insertCategory = sqlite.prepare(`
     INSERT INTO menu_categories (id, merchant_id, name, sort_order, created_at)
     VALUES (@id, @merchant_id, @name, @sort_order, @created_at)
+  `);
+
+  const insertMerchantHour = sqlite.prepare(`
+    INSERT INTO merchant_hours (
+      id, merchant_id, day_of_week, opens_at, closes_at, is_closed
+    ) VALUES (
+      @id, @merchant_id, @day_of_week, @opens_at, @closes_at, @is_closed
+    )
   `);
 
   const insertMenuItem = sqlite.prepare(`
@@ -319,6 +650,14 @@ function seedDatabase() {
   const insertAuditLog = sqlite.prepare(`
     INSERT INTO audit_logs (id, actor_user_id, action, entity_type, entity_id, meta_json, created_at)
     VALUES (@id, @actor_user_id, @action, @entity_type, @entity_id, @meta_json, @created_at)
+  `);
+
+  const insertNotification = sqlite.prepare(`
+    INSERT INTO notifications (
+      id, user_id, title, message, type, is_read, link, created_at
+    ) VALUES (
+      @id, @user_id, @title, @message, @type, @is_read, @link, @created_at
+    )
   `);
 
   const transaction = sqlite.transaction(() => {
@@ -404,6 +743,17 @@ function seedDatabase() {
       sort_order: 1,
       created_at: now,
     });
+
+    for (let dayOfWeek = 0; dayOfWeek <= 6; dayOfWeek += 1) {
+      insertMerchantHour.run({
+        id: `merchant_hour_01_${dayOfWeek}`,
+        merchant_id: "merchant_01",
+        day_of_week: dayOfWeek,
+        opens_at: "10:00",
+        closes_at: "23:30",
+        is_closed: 0,
+      });
+    }
 
     insertMenuItem.run({
       id: "item_01",
@@ -497,9 +847,32 @@ function seedDatabase() {
       meta_json: '{"source":"app_bootstrap"}',
       created_at: now,
     });
+
+    insertNotification.run({
+      id: "notification_01",
+      user_id: "user_customer_01",
+      title: "Order confirmed",
+      message: "SP-1001 is confirmed and the kitchen has started processing it.",
+      type: "order",
+      is_read: 0,
+      link: "/workspace/orders/order_01",
+      created_at: now,
+    });
+
+    insertNotification.run({
+      id: "notification_02",
+      user_id: "user_merchant_01",
+      title: "New order in queue",
+      message: "SP-1001 is waiting in your active kitchen queue.",
+      type: "order",
+      is_read: 0,
+      link: "/workspace/orders/order_01",
+      created_at: now,
+    });
   });
 
   transaction();
+  seedWalletData(now);
 }
 
 if (!globalForDatabase.sqliteInitialized) {

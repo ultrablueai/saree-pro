@@ -1,13 +1,9 @@
 "use client";
 
-import { useActionState } from "react";
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/Button";
-import { signInAsOwner, type LoginState } from "@/app/login/actions";
-
-const initialState: LoginState = {
-  status: "idle",
-  message: "",
-};
+import { signInAsOwner } from "@/app/login/actions";
 
 interface OwnerAccessFormProps {
   labels: {
@@ -18,16 +14,39 @@ interface OwnerAccessFormProps {
 }
 
 export function OwnerAccessForm({ labels }: OwnerAccessFormProps) {
-  const [state, action] = useActionState(signInAsOwner, initialState);
+  const router = useRouter();
+  const [email, setEmail] = useState("admin@sareepro.local");
+  const [accessCode, setAccessCode] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
 
   return (
-    <form action={action} className="space-y-5">
+    <form
+      className="space-y-5"
+      onSubmit={(event) => {
+        event.preventDefault();
+        setError(null);
+
+        startTransition(async () => {
+          const result = await signInAsOwner(email, accessCode);
+
+          if (!result.success) {
+            setError(result.error ?? "Unable to open owner console.");
+            return;
+          }
+
+          router.push("/workspace");
+          router.refresh();
+        });
+      }}
+    >
       <label className="block space-y-2 text-sm font-medium text-[var(--color-ink)]">
         {labels.ownerEmail}
         <input
           type="email"
           name="email"
-          defaultValue="admin@sareepro.local"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
           className="w-full rounded-2xl border border-[var(--color-border)] bg-white px-4 py-3 outline-none transition focus:border-[var(--color-accent)]"
           required
         />
@@ -38,18 +57,20 @@ export function OwnerAccessForm({ labels }: OwnerAccessFormProps) {
         <input
           type="password"
           name="accessCode"
+          value={accessCode}
+          onChange={(event) => setAccessCode(event.target.value)}
           className="w-full rounded-2xl border border-[var(--color-border)] bg-white px-4 py-3 outline-none transition focus:border-[var(--color-accent)]"
           required
         />
       </label>
 
-      {state.status === "error" ? (
+      {error ? (
         <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
-          {state.message}
+          {error}
         </div>
       ) : null}
 
-      <Button type="submit" className="w-full">
+      <Button type="submit" disabled={isPending} className="w-full">
         {labels.openOwnerConsole}
       </Button>
     </form>

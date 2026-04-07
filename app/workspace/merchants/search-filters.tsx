@@ -118,8 +118,11 @@ export function SearchFilters({ filters, onFilterChange }: Props) {
             <select
               value={`${filters.sortBy}-${filters.sortOrder}`}
               onChange={(e) => {
-                const [sortBy, sortOrder] = e.target.value.split('-');
-                onFilterChange({ sortBy, sortOrder });
+                const [sortBy, sortOrder] = e.target.value.split("-");
+                onFilterChange({
+                  sortBy: sortBy as NonNullable<MerchantSearchParams["sortBy"]>,
+                  sortOrder: sortOrder as NonNullable<MerchantSearchParams["sortOrder"]>,
+                });
               }}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d66b42] text-sm"
             >

@@ -1,349 +1,203 @@
-'use client';
+import Link from "next/link";
+import { markProfileNotificationRead, markProfileNotificationsRead } from "@/app/workspace/profile/actions";
+import { Button } from "@/components/Button";
+import { StatusPill } from "@/components/StatusPill";
+import { requireSessionUser } from "@/lib/auth";
+import { getNotificationsByUserId, getUnreadCount } from "@/lib/notifications";
+import { getCustomerOrders, getUserAddressSummary } from "@/lib/workspace-data";
 
-import { useState, useEffect } from 'react';
-import { getSessionUser } from '@/lib/auth';
-import { updateUserProfile, updateUserPassword, type UserProfile } from './profile-actions';
-import { Button } from '@/components/Button';
-import NotificationBell from '@/components/NotificationBell';
+function formatRole(role: string) {
+  return role.charAt(0).toUpperCase() + role.slice(1);
+}
 
-export default function ProfilePage() {
-  const [user, setUser] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState(false);
-  const [formData, setFormData] = useState({
-    fullName: '',
-    phone: '',
-    avatarUrl: '',
-  });
-  const [changingPassword, setChangingPassword] = useState(false);
-  const [passwordData, setPasswordData] = useState({
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: '',
-  });
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetchUser();
-  }, []);
-
-  const fetchUser = async () => {
-    try {
-      const session = await getSessionUser();
-      if (session) {
-        setUser(session);
-        setFormData({
-          fullName: session.name || '',
-          phone: '',
-          avatarUrl: session.avatarUrl || '',
-        });
-      }
-    } catch (error) {
-      console.error('Failed to fetch user:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleUpdateProfile = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setMessage(null);
-
-    try {
-      const result = await updateUserProfile(user.id, formData);
-      if (result.error) {
-        setError(result.error);
-        return;
-      }
-      setMessage('تم تحديث الملف الشخصي بنجاح');
-      setEditing(false);
-      fetchUser();
-    } catch (err: any) {
-      setError(err.message || 'فشل تحديث الملف الشخصي');
-    }
-  };
-
-  const handleChangePassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setMessage(null);
-
-    if (passwordData.newPassword !== passwordData.confirmPassword) {
-      setError('كلمتا المرور غير متطابقتين');
-      return;
-    }
-
-    if (passwordData.newPassword.length < 6) {
-      setError('كلمة المرور يجب أن تكون 6 أحرف على الأقل');
-      return;
-    }
-
-    try {
-      const result = await updateUserPassword(user.id, passwordData.currentPassword, passwordData.newPassword);
-      if (result.error) {
-        setError(result.error);
-        return;
-      }
-      setMessage('تم تغيير كلمة المرور بنجاح');
-      setChangingPassword(false);
-      setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
-    } catch (err: any) {
-      setError(err.message || 'فشل تغيير كلمة المرور');
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-[#f4efe8] to-[#e8ddd0] flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#d66b42] mx-auto mb-4"></div>
-          <p className="text-[#6b5c55]">جاري التحميل...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-[#f4efe8] to-[#e8ddd0] flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-red-600 text-lg mb-4">يجب تسجيل الدخول أولاً</p>
-          <a href="/login" className="text-[#d66b42] hover:text-[#b85a35] font-medium">
-            تسجيل الدخول
-          </a>
-        </div>
-      </div>
-    );
-  }
+export default async function ProfilePage() {
+  const session = await requireSessionUser();
+  const [address, notifications, unreadCount, orders] = await Promise.all([
+    getUserAddressSummary(session.id),
+    getNotificationsByUserId(session.id, 12),
+    getUnreadCount(session.id),
+    session.role === "customer" ? getCustomerOrders(session.id) : Promise.resolve([]),
+  ]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#f4efe8] to-[#e8ddd0]">
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-4xl mx-auto px-4 py-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-[#2d1f1a] mb-2">الملف الشخصي</h1>
-              <p className="text-[#6b5c55]">إدارة معلوماتك الشخصية</p>
-            </div>
-            <NotificationBell userId={user.id} />
-          </div>
-        </div>
-      </div>
-
-      <div className="max-w-4xl mx-auto px-4 py-6">
-        {/* Messages */}
-        {message && (
-          <div className="mb-4 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg">
-            {message}
-          </div>
-        )}
-        {error && (
-          <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-            {error}
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Profile Information */}
-          <div className="bg-white rounded-xl shadow-sm p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-[#2d1f1a]">المعلومات الشخصية</h2>
-              {!editing && (
-                <button
-                  onClick={() => setEditing(true)}
-                  className="text-sm text-[#d66b42] hover:text-[#b85a35] font-medium"
-                >
-                  تعديل
-                </button>
-              )}
-            </div>
-
-            <form onSubmit={handleUpdateProfile} className="space-y-4">
+    <main className="app-shell mx-auto min-h-screen w-full max-w-6xl px-4 pb-20 pt-5 sm:px-8 sm:pt-8">
+      <div className="glass-panel overflow-hidden rounded-[2rem] p-4 md:p-6">
+        <header className="rounded-[1.8rem] bg-[radial-gradient(circle_at_top_left,rgba(214,107,66,0.14),transparent_32%),linear-gradient(135deg,#fffaf4_0%,#f7efe5_52%,#f1e5d7_100%)] px-6 py-7">
+          <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
+            <div className="space-y-4">
+              <StatusPill
+                label={session.ownerAccess ? "Elevated owner session" : "Authenticated session"}
+                tone={session.ownerAccess ? "warning" : "success"}
+              />
               <div>
-                <label className="block text-sm font-medium text-[#4a3f37] mb-1">
-                  البريد الإلكتروني
-                </label>
-                <input
-                  type="email"
-                  value={user.email}
-                  disabled
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
-                  dir="ltr"
-                />
+                <p className="text-sm font-medium uppercase tracking-[0.28em] text-[var(--color-muted)]">
+                  Account
+                </p>
+                <h1 className="mt-2 text-3xl font-semibold tracking-tight text-[var(--color-ink)]">
+                  {session.name}
+                </h1>
               </div>
-
-              <div>
-                <label htmlFor="fullName" className="block text-sm font-medium text-[#4a3f37] mb-1">
-                  الاسم الكامل
-                </label>
-                <input
-                  id="fullName"
-                  type="text"
-                  value={formData.fullName}
-                  onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                  disabled={!editing}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d66b42] disabled:bg-gray-50"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="phone" className="block text-sm font-medium text-[#4a3f37] mb-1">
-                  رقم الهاتف
-                </label>
-                <input
-                  id="phone"
-                  type="tel"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  disabled={!editing}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d66b42] disabled:bg-gray-50"
-                  dir="ltr"
-                />
-              </div>
-
-              {editing && (
-                <div className="flex gap-2">
-                  <Button type="submit" variant="primary" className="flex-1">
-                    حفظ التغييرات
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => {
-                      setEditing(false);
-                      setFormData({
-                        fullName: user.name || '',
-                        phone: '',
-                        avatarUrl: '',
-                      });
-                    }}
-                    className="flex-1"
-                  >
-                    إلغاء
-                  </Button>
-                </div>
-              )}
-            </form>
-          </div>
-
-          {/* Change Password */}
-          <div className="bg-white rounded-xl shadow-sm p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-[#2d1f1a]">كلمة المرور</h2>
-              {!changingPassword && (
-                <button
-                  onClick={() => setChangingPassword(true)}
-                  className="text-sm text-[#d66b42] hover:text-[#b85a35] font-medium"
-                >
-                  تغيير
-                </button>
-              )}
-            </div>
-
-            {changingPassword ? (
-              <form onSubmit={handleChangePassword} className="space-y-4">
-                <div>
-                  <label htmlFor="currentPassword" className="block text-sm font-medium text-[#4a3f37] mb-1">
-                    كلمة المرور الحالية
-                  </label>
-                  <input
-                    id="currentPassword"
-                    type="password"
-                    value={passwordData.currentPassword}
-                    onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d66b42]"
-                    placeholder="••••••••"
-                    dir="ltr"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="newPassword" className="block text-sm font-medium text-[#4a3f37] mb-1">
-                    كلمة المرور الجديدة
-                  </label>
-                  <input
-                    id="newPassword"
-                    type="password"
-                    value={passwordData.newPassword}
-                    onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d66b42]"
-                    placeholder="••••••••"
-                    dir="ltr"
-                    minLength={6}
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="confirmPassword" className="block text-sm font-medium text-[#4a3f37] mb-1">
-                    تأكيد كلمة المرور
-                  </label>
-                  <input
-                    id="confirmPassword"
-                    type="password"
-                    value={passwordData.confirmPassword}
-                    onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d66b42]"
-                    placeholder="••••••••"
-                    dir="ltr"
-                    minLength={6}
-                  />
-                </div>
-
-                <div className="flex gap-2">
-                  <Button type="submit" variant="primary" className="flex-1">
-                    تغيير كلمة المرور
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => {
-                      setChangingPassword(false);
-                      setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
-                    }}
-                    className="flex-1"
-                  >
-                    إلغاء
-                  </Button>
-                </div>
-              </form>
-            ) : (
-              <div className="text-center py-8 text-[#6b5c55]">
-                <p>قم بتغيير كلمة المرور للحفاظ على أمان حسابك</p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Account Info */}
-        <div className="mt-6 bg-white rounded-xl shadow-sm p-6">
-          <h2 className="text-xl font-bold text-[#2d1f1a] mb-4">معلومات الحساب</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center p-4 bg-[#f4efe8] rounded-lg">
-              <p className="text-sm text-[#6b5c55]">نوع الحساب</p>
-              <p className="font-bold text-[#2d1f1a] capitalize">{user.role}</p>
-            </div>
-            <div className="text-center p-4 bg-[#f4efe8] rounded-lg">
-              <p className="text-sm text-[#6b5c55]">الحالة</p>
-              <p className="font-bold text-green-600">نشط</p>
-            </div>
-            <div className="text-center p-4 bg-[#f4efe8] rounded-lg">
-              <p className="text-sm text-[#6b5c55]">البريد موثق</p>
-              <p className={`font-bold ${user.emailVerified ? 'text-green-600' : 'text-yellow-600'}`}>
-                {user.emailVerified ? 'نعم' : 'لا'}
+              <p className="max-w-2xl text-sm leading-7 text-[var(--color-muted)]">
+                This profile now reflects the live session, recent activity, saved address, and the
+                notification feed used by the workspace.
               </p>
             </div>
-            <div className="text-center p-4 bg-[#f4efe8] rounded-lg">
-              <p className="text-sm text-[#6b5c55]">تاريخ الانضمام</p>
-              <p className="font-bold text-[#2d1f1a]">
-                {new Date(user.createdAt).toLocaleDateString('ar-SA')}
-              </p>
+
+            <div className="flex flex-wrap gap-3">
+              <Link href="/workspace">
+                <Button variant="secondary">Back to workspace</Button>
+              </Link>
+              <Link href="/workspace/orders">
+                <Button variant="ghost">Orders hub</Button>
+              </Link>
             </div>
           </div>
-        </div>
+        </header>
+
+        <section className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          <article className="metric-card">
+            <p className="text-xs uppercase tracking-[0.24em] text-[var(--color-muted)]">Name</p>
+            <p className="mt-3 text-xl font-semibold text-[var(--color-ink)]">{session.name}</p>
+          </article>
+          <article className="metric-card">
+            <p className="text-xs uppercase tracking-[0.24em] text-[var(--color-muted)]">Email</p>
+            <p className="mt-3 break-all text-sm font-medium text-[var(--color-ink)]">
+              {session.email}
+            </p>
+          </article>
+          <article className="metric-card">
+            <p className="text-xs uppercase tracking-[0.24em] text-[var(--color-muted)]">Role</p>
+            <p className="mt-3 text-xl font-semibold text-[var(--color-ink)]">
+              {formatRole(session.role)}
+            </p>
+          </article>
+          <article className="metric-card">
+            <p className="text-xs uppercase tracking-[0.24em] text-[var(--color-muted)]">
+              Access scope
+            </p>
+            <p className="mt-3 text-xl font-semibold text-[var(--color-ink)]">
+              {session.ownerAccess ? "Owner access" : "Standard"}
+            </p>
+          </article>
+          <article className="metric-card">
+            <p className="text-xs uppercase tracking-[0.24em] text-[var(--color-muted)]">
+              Unread alerts
+            </p>
+            <p className="mt-3 text-xl font-semibold text-[var(--color-ink)]">{unreadCount}</p>
+          </article>
+        </section>
+
+        <section className="mt-5 grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+          <article className="rounded-[1.6rem] border border-[var(--color-border)] bg-white/75 p-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--color-accent-strong)]">
+              Delivery Profile
+            </p>
+            <div className="mt-4 space-y-3 text-sm leading-6 text-[var(--color-muted)]">
+              {address ? (
+                <>
+                  <p>
+                    <span className="font-semibold text-[var(--color-ink)]">Address:</span>{" "}
+                    {address.label ?? "Primary address"}
+                  </p>
+                  <p>
+                    {address.street} {address.building}, {address.district ?? "District"},{" "}
+                    {address.city}
+                  </p>
+                  <p>{address.notes ?? "No delivery note saved."}</p>
+                </>
+              ) : (
+                <p>No saved address found yet.</p>
+              )}
+            </div>
+
+            {orders.length ? (
+              <div className="mt-6 rounded-[1.4rem] border border-[var(--color-border)] bg-[var(--color-surface-strong)]/55 p-4">
+                <p className="text-xs uppercase tracking-[0.22em] text-[var(--color-muted)]">
+                  Latest customer order
+                </p>
+                <p className="mt-2 text-lg font-semibold text-[var(--color-ink)]">
+                  {orders[0]?.order_code}
+                </p>
+                <p className="mt-1 text-sm text-[var(--color-muted)]">
+                  {orders[0]?.merchant_name} • {orders[0]?.status}
+                </p>
+              </div>
+            ) : null}
+          </article>
+
+          <article className="rounded-[1.6rem] border border-[var(--color-border)] bg-[var(--color-surface-strong)]/55 p-6">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--color-muted)]">
+                  Notification Feed
+                </p>
+                <p className="mt-2 text-sm leading-6 text-[var(--color-muted)]">
+                  Real alerts now come from the database and stay in sync with the workspace.
+                </p>
+              </div>
+              {unreadCount > 0 ? (
+                <form action={markProfileNotificationsRead}>
+                  <Button type="submit" variant="secondary">
+                    Mark all read
+                  </Button>
+                </form>
+              ) : null}
+            </div>
+
+            <div className="mt-5 space-y-3">
+              {notifications.length ? (
+                notifications.map((notification) => (
+                  <div
+                    key={notification.id}
+                    className="rounded-[1.35rem] border border-[var(--color-border)] bg-white/80 px-4 py-4"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-[var(--color-ink)]">
+                            {notification.title}
+                          </p>
+                          {!notification.isRead ? (
+                            <span className="rounded-full bg-[var(--color-accent-soft)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--color-accent-strong)]">
+                              New
+                            </span>
+                          ) : null}
+                        </div>
+                        <p className="mt-2 text-sm leading-6 text-[var(--color-muted)]">
+                          {notification.message}
+                        </p>
+                        <p className="mt-3 text-xs uppercase tracking-[0.18em] text-[var(--color-muted)]">
+                          {notification.type} • {new Date(notification.createdAt).toLocaleString()}
+                        </p>
+                      </div>
+
+                      <div className="flex shrink-0 items-center gap-2">
+                        {notification.link ? (
+                          <Link href={notification.link}>
+                            <Button variant="ghost">Open</Button>
+                          </Link>
+                        ) : null}
+                        {!notification.isRead ? (
+                          <form action={markProfileNotificationRead}>
+                            <input type="hidden" name="notificationId" value={notification.id} />
+                            <Button type="submit" variant="secondary">
+                              Read
+                            </Button>
+                          </form>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-2xl border border-dashed border-[var(--color-border)] bg-white/80 px-4 py-6 text-sm text-[var(--color-muted)]">
+                  No notifications yet.
+                </div>
+              )}
+            </div>
+          </article>
+        </section>
       </div>
-    </div>
+    </main>
   );
 }

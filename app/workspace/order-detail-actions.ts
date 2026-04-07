@@ -47,7 +47,7 @@ async function getBestFitDriver() {
         dp.id,
         du.full_name AS driver_name,
         dp.availability,
-        COUNT(active_orders.id)::int AS active_order_count
+        CAST(COUNT(active_orders.id) AS INTEGER) AS active_order_count
      FROM driver_profiles dp
      INNER JOIN app_users du ON du.id = dp.user_id
      LEFT JOIN orders active_orders
@@ -128,7 +128,7 @@ export async function openOrderDispute(formData: FormData) {
 async function settlementAlreadyExists(orderId: string) {
   const db = await getDbExecutor();
   const row = await db.get<{ count: number }>(
-    `SELECT COUNT(*)::int as count
+    `SELECT CAST(COUNT(*) AS INTEGER) as count
      FROM financial_ledger_entries
      WHERE order_id = ? AND entry_type = 'platform_fee'`,
     [orderId],

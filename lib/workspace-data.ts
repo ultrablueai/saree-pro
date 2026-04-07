@@ -1,5 +1,7 @@
 import type { SessionUser } from "@/lib/auth";
 import { getCustomerOrderWorkspaceData } from "@/lib/customer-order-data";
+import { getNotificationsByUserId, getUnreadCount } from "@/lib/notifications";
+import { getLoyaltyPointsByUserId, getWalletSummaryByUserId } from "@/lib/wallet-server";
 import { getDbExecutor } from "@/lib/db";
 
 function formatMoney(amount: number, currency = "SAR") {
@@ -117,6 +119,31 @@ export async function getCustomerOrders(customerId: string) {
   );
 }
 
+async function getFavoriteMerchants(customerId: string) {
+  const db = await getDbExecutor();
+  return db.all<{
+    id: string;
+    name: string;
+    slug: string;
+    rating: number;
+    order_count: number;
+  }>(
+    `SELECT
+       m.id,
+       m.name,
+       m.slug,
+       m.rating,
+       COUNT(o.id) as order_count
+     FROM orders o
+     INNER JOIN merchants m ON m.id = o.merchant_id
+     WHERE o.customer_id = ?
+     GROUP BY m.id, m.name, m.slug, m.rating
+     ORDER BY order_count DESC, m.rating DESC, m.name ASC
+     LIMIT 3`,
+    [customerId],
+  );
+}
+
 export async function getMerchantWorkspace(userId: string) {
   const db = await getDbExecutor();
   const merchant = await db.get<{
@@ -140,11 +167,11 @@ export async function getMerchantWorkspace(userId: string) {
   }
 
   const menuCount = await db.get<{ count: number }>(
-    "SELECT COUNT(*)::int as count FROM menu_items WHERE merchant_id = ?",
+    "SELECT CAST(COUNT(*) AS INTEGER) as count FROM menu_items WHERE merchant_id = ?",
     [merchant.id],
   );
   const activeOrders = await db.get<{ count: number }>(
-    `SELECT COUNT(*)::int as count
+    `SELECT CAST(COUNT(*) AS INTEGER) as count
      FROM orders
      WHERE merchant_id = ?
      AND status IN ('pending', 'confirmed', 'preparing', 'ready')`,
@@ -172,7 +199,7 @@ export async function getMerchantWorkspace(userId: string) {
     item_count: number;
   }>(
     `SELECT c.id, c.name, c.sort_order,
-            COUNT(mi.id)::int as item_count
+            CAST(COUNT(mi.id) AS INTEGER) as item_count
      FROM menu_categories c
      LEFT JOIN menu_items mi ON mi.category_id = c.id
      WHERE c.merchant_id = ?
@@ -192,7 +219,7 @@ export async function getMerchantWorkspace(userId: string) {
     category_name: string;
   }>(
     `SELECT mi.id, mi.name, mi.description, mi.price_amount, mi.currency,
-            mi.is_available::int as is_available, mi.sort_order, mi.category_id,
+            CASE WHEN mi.is_available THEN 1 ELSE 0 END as is_available, mi.sort_order, mi.category_id,
             COALESCE(c.name, 'Uncategorized') as category_name
      FROM menu_items mi
      LEFT JOIN menu_categories c ON c.id = mi.category_id
@@ -220,7 +247,7 @@ export async function getMerchantWorkspace(userId: string) {
         o.created_at,
         o.special_instructions,
         u.full_name AS customer_name,
-        COUNT(oi.id)::int AS item_count
+        CAST(COUNT(oi.id) AS INTEGER) AS item_count
      FROM orders o
      INNER JOIN app_users u ON u.id = o.customer_id
      LEFT JOIN order_items oi ON oi.order_id = o.id
@@ -259,7 +286,7 @@ export async function getDriverWorkspace(userId: string) {
     availability: string;
     license_number: string | null;
   }>(
-    `SELECT id, vehicle_type, is_verified::int as is_verified, availability, license_number
+    `SELECT id, vehicle_type, CASE WHEN is_verified THEN 1 ELSE 0 END as is_verified, availability, license_number
      FROM driver_profiles
      WHERE user_id = ?
      LIMIT 1`,
@@ -349,41 +376,43 @@ export async function getDriverWorkspace(userId: string) {
 export async function getOwnerWorkspace() {
   const db = await getDbExecutor();
   const grossSales = (
-    await db.get<{ total: number }>("SELECT COALESCE(SUM(total_amount), 0)::int as total FROM orders")
+    await db.get<{ total: number }>(
+      "SELECT CAST(COALESCE(SUM(total_amount), 0) AS INTEGER) as total FROM orders",
+    )
   )?.total ?? 0;
   const heldEscrow = (
     await db.get<{ total: number }>(
-      "SELECT COALESCE(SUM(amount), 0)::int as total FROM payment_transactions WHERE status = 'held'",
+      "SELECT CAST(COALESCE(SUM(amount), 0) AS INTEGER) as total FROM payment_transactions WHERE status = 'held'",
     )
   )?.total ?? 0;
   const releasedFunds = (
     await db.get<{ total: number }>(
-      "SELECT COALESCE(SUM(amount), 0)::int as total FROM payment_transactions WHERE status = 'released'",
+      "SELECT CAST(COALESCE(SUM(amount), 0) AS INTEGER) as total FROM payment_transactions WHERE status = 'released'",
     )
   )?.total ?? 0;
   const merchantPayouts = (
     await db.get<{ total: number }>(
-      "SELECT COALESCE(SUM(amount), 0)::int as total FROM financial_ledger_entries WHERE entry_type = 'merchant_payout'",
+      "SELECT CAST(COALESCE(SUM(amount), 0) AS INTEGER) as total FROM financial_ledger_entries WHERE entry_type = 'merchant_payout'",
     )
   )?.total ?? 0;
   const driverPayouts = (
     await db.get<{ total: number }>(
-      "SELECT COALESCE(SUM(amount), 0)::int as total FROM financial_ledger_entries WHERE entry_type = 'driver_payout'",
+      "SELECT CAST(COALESCE(SUM(amount), 0) AS INTEGER) as total FROM financial_ledger_entries WHERE entry_type = 'driver_payout'",
     )
   )?.total ?? 0;
   const refundedAmount = (
     await db.get<{ total: number }>(
-      "SELECT COALESCE(SUM(amount), 0)::int as total FROM financial_ledger_entries WHERE entry_type = 'refund'",
+      "SELECT CAST(COALESCE(SUM(amount), 0) AS INTEGER) as total FROM financial_ledger_entries WHERE entry_type = 'refund'",
     )
   )?.total ?? 0;
   const pendingOrders = (
     await db.get<{ count: number }>(
-      "SELECT COUNT(*)::int as count FROM orders WHERE status IN ('pending', 'confirmed', 'preparing', 'ready')",
+      "SELECT CAST(COUNT(*) AS INTEGER) as count FROM orders WHERE status IN ('pending', 'confirmed', 'preparing', 'ready')",
     )
   )?.count ?? 0;
   const activeDrivers = (
     await db.get<{ count: number }>(
-      "SELECT COUNT(*)::int as count FROM driver_profiles WHERE availability IN ('available', 'on_delivery')",
+      "SELECT CAST(COUNT(*) AS INTEGER) as count FROM driver_profiles WHERE availability IN ('available', 'on_delivery')",
     )
   )?.count ?? 0;
 
@@ -575,12 +604,37 @@ export async function getWorkspaceSummary(session: SessionUser) {
   }
 
   if (session.role === "customer") {
+    const [
+      address,
+      orders,
+      ordering,
+      notifications,
+      unreadNotifications,
+      favoriteMerchants,
+      wallet,
+      loyaltyPoints,
+    ] = await Promise.all([
+      getUserAddressSummary(session.id),
+      getCustomerOrders(session.id),
+      getCustomerOrderWorkspaceData(session.id),
+      getNotificationsByUserId(session.id, 4),
+      getUnreadCount(session.id),
+      getFavoriteMerchants(session.id),
+      getWalletSummaryByUserId(session.id),
+      getLoyaltyPointsByUserId(session.id),
+    ]);
+
     return {
       type: "customer" as const,
       data: {
-        address: await getUserAddressSummary(session.id),
-        orders: await getCustomerOrders(session.id),
-        ordering: await getCustomerOrderWorkspaceData(session.id),
+        address,
+        orders,
+        ordering,
+        notifications,
+        unreadNotifications,
+        favoriteMerchants,
+        wallet,
+        loyaltyPoints,
       },
     };
   }

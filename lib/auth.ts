@@ -4,6 +4,7 @@ import { getDbExecutor } from "@/lib/db";
 import type { UserRole } from "@/types";
 
 const SESSION_COOKIE = "sareepro_session";
+const LEGACY_SESSION_COOKIE = "sareepro-session";
 
 export interface SessionUser {
   id: string;
@@ -34,7 +35,10 @@ function parseSessionCookie(value: string | undefined): SessionUser | null {
 
 export async function getSessionUser() {
   const cookieStore = await cookies();
-  return parseSessionCookie(cookieStore.get(SESSION_COOKIE)?.value);
+  return parseSessionCookie(
+    cookieStore.get(SESSION_COOKIE)?.value ??
+      cookieStore.get(LEGACY_SESSION_COOKIE)?.value,
+  );
 }
 
 export async function requireSessionUser() {
@@ -61,6 +65,7 @@ export async function setSessionUser(session: SessionUser) {
 export async function clearSessionUser() {
   const cookieStore = await cookies();
   cookieStore.delete(SESSION_COOKIE);
+  cookieStore.delete(LEGACY_SESSION_COOKIE);
 }
 
 export async function getUserByRole(role: UserRole) {

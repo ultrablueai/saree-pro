@@ -7,13 +7,7 @@ export function initSentry() {
     environment: process.env.NODE_ENV || 'development',
     tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
     debug: process.env.NODE_ENV === 'development',
-    
-    // Performance monitoring
-    integrations: [
-      new Sentry.fsIntegration.Http({ tracing: true }),
-      new Sentry.Integrations.Express({ app: undefined }),
-    ],
-    
+
     beforeSend(event) {
       // Filter out sensitive data
       if (event.request?.cookies) {

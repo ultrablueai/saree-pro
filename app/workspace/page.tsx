@@ -7,9 +7,11 @@ import { OwnerWorkspacePanel } from "@/app/workspace/OwnerWorkspacePanel";
 import { Button } from "@/components/Button";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { MobileBottomNav } from "@/components/MobileBottomNav";
+import NotificationBell from "@/components/NotificationBell";
 import { StatusPill } from "@/components/StatusPill";
 import { requireSessionUser } from "@/lib/auth";
 import { getRequestI18n } from "@/lib/i18n-server";
+import { getNotificationsByUserId, getUnreadCount } from "@/lib/notifications";
 import { getWorkspaceSummary } from "@/lib/workspace-data";
 
 function formatDate(value: string, locale: string) {
@@ -63,8 +65,18 @@ function getWorkspaceHighlights(
   if (workspace.type === "customer") {
     return [
       { label: "Recent orders", value: workspace.data.orders.length.toString() },
-      { label: "Saved address", value: workspace.data.address?.city ?? "Pending" },
-      { label: "Live catalog", value: `${workspace.data.ordering.items.length} items` },
+      {
+        label: "Wallet balance",
+        value: workspace.data.wallet
+          ? formatCurrency(Math.round(workspace.data.wallet.balance * 100), workspace.data.wallet.currency, locale)
+          : "Not ready",
+      },
+      {
+        label: "Loyalty points",
+        value: workspace.data.loyaltyPoints
+          ? workspace.data.loyaltyPoints.points.toString()
+          : workspace.data.unreadNotifications.toString(),
+      },
     ];
   }
 
@@ -105,7 +117,11 @@ function getWorkspaceHighlights(
 export default async function WorkspacePage() {
   const session = await requireSessionUser();
   const { locale, dictionary } = await getRequestI18n();
-  const workspace = await getWorkspaceSummary(session);
+  const [workspace, headerNotifications, headerUnreadCount] = await Promise.all([
+    getWorkspaceSummary(session),
+    getNotificationsByUserId(session.id, 6),
+    getUnreadCount(session.id),
+  ]);
   const workspaceLabel =
     session.ownerAccess
       ? dictionary.workspaces.ownerAccess
@@ -142,6 +158,17 @@ export default async function WorkspacePage() {
                   Orders hub
                 </Button>
               </Link>
+              {workspace.type === "customer" ? (
+                <Link href="/workspace/wallet">
+                  <Button variant="ghost" className="bg-white/75">
+                    Wallet
+                  </Button>
+                </Link>
+              ) : null}
+              <NotificationBell
+                notifications={headerNotifications}
+                unreadCount={headerUnreadCount}
+              />
               <LanguageSwitcher currentLocale={locale} label={dictionary.common.language} />
               <form action={signOutWorkspace}>
                 <Button type="submit" variant="secondary">

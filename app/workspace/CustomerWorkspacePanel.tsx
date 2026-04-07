@@ -28,6 +28,33 @@ interface CustomerWorkspacePanelProps {
       escrow_status: string | null;
     }>;
     ordering: CustomerOrderWorkspaceData;
+    notifications: Array<{
+      id: string;
+      title: string;
+      message: string;
+      type: string;
+      isRead: boolean;
+      link: string | null;
+      createdAt: string;
+    }>;
+    unreadNotifications: number;
+    favoriteMerchants: Array<{
+      id: string;
+      name: string;
+      slug: string;
+      rating: number;
+      order_count: number;
+    }>;
+    wallet: {
+      id: string;
+      balance: number;
+      currency: string;
+    } | null;
+    loyaltyPoints: {
+      points: number;
+      nextTierPoints: number;
+      tier: string;
+    } | null;
   };
   formatCurrency: (amount: number, currency: string) => string;
   formatDate: (value: string) => string;
@@ -66,12 +93,12 @@ export function CustomerWorkspacePanel({
           </p>
         </article>
         <article className="metric-card">
-          <p className="section-kicker">Speed</p>
+          <p className="section-kicker">Signals</p>
           <h2 className="mt-3 text-xl font-semibold text-[var(--color-ink)]">
-            Live order progress
+            Live customer feed
           </h2>
           <p className="mt-2 text-sm leading-6 text-[var(--color-muted)]">
-            Every order keeps a visible stage bar so the customer is never left guessing.
+            Recent alerts and favorite kitchens are now connected to the live data layer.
           </p>
         </article>
       </section>
@@ -96,6 +123,51 @@ export function CustomerWorkspacePanel({
           ) : (
             <p className="mt-5 text-sm text-[var(--color-muted)]">No saved address found yet.</p>
           )}
+
+          <div className="mt-6 rounded-[1.4rem] border border-[var(--color-border)] bg-white/70 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-[0.22em] text-[var(--color-muted)]">
+                  Notifications
+                </p>
+                <p className="mt-2 text-lg font-semibold text-[var(--color-ink)]">
+                  {data.unreadNotifications} unread
+                </p>
+              </div>
+              <Link
+                href="/workspace/profile"
+                className="text-sm font-medium text-[var(--color-accent-strong)] transition hover:opacity-80"
+              >
+                Open inbox
+              </Link>
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-[1.4rem] border border-[var(--color-border)] bg-white/70 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-[0.22em] text-[var(--color-muted)]">
+                  Wallet
+                </p>
+                <p className="mt-2 text-lg font-semibold text-[var(--color-ink)]">
+                  {data.wallet
+                    ? formatCurrency(Math.round(data.wallet.balance * 100), data.wallet.currency)
+                    : "Balance, rewards, and loyalty"}
+                </p>
+                <p className="mt-1 text-sm text-[var(--color-muted)]">
+                  {data.loyaltyPoints
+                    ? `${data.loyaltyPoints.points} points in ${data.loyaltyPoints.tier} tier.`
+                    : "The wallet dashboard is now connected to live read-only endpoints."}
+                </p>
+              </div>
+              <Link
+                href="/workspace/wallet"
+                className="text-sm font-medium text-[var(--color-accent-strong)] transition hover:opacity-80"
+              >
+                Open wallet
+              </Link>
+            </div>
+          </div>
         </article>
 
         <article className="glass-panel rounded-[1.7rem] p-6">
@@ -160,6 +232,123 @@ export function CustomerWorkspacePanel({
           </div>
         </article>
       </div>
+
+      <section className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+        <article className="glass-panel rounded-[1.7rem] p-6">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-2xl font-semibold tracking-tight text-[var(--color-ink)]">
+              Favorite merchants
+            </h2>
+            <Link
+              href="/workspace/merchants"
+              className="text-sm font-medium text-[var(--color-accent-strong)] transition hover:opacity-80"
+            >
+              Browse all
+            </Link>
+          </div>
+
+          <div className="mt-5 space-y-3">
+            {data.favoriteMerchants.length ? (
+              data.favoriteMerchants.map((merchant) => (
+                <Link
+                  key={merchant.id}
+                  href={`/workspace/merchants/${merchant.slug}`}
+                  className="block rounded-[1.35rem] border border-[var(--color-border)] bg-white/75 px-4 py-4 transition hover:-translate-y-0.5 hover:shadow-sm"
+                >
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="font-semibold text-[var(--color-ink)]">{merchant.name}</p>
+                      <p className="mt-1 text-sm text-[var(--color-muted)]">
+                        {merchant.order_count} previous orders
+                      </p>
+                    </div>
+                    <div className="rounded-full border border-[var(--color-border)] px-3 py-1 text-sm font-semibold text-[var(--color-ink)]">
+                      {merchant.rating.toFixed(1)}
+                    </div>
+                  </div>
+                </Link>
+              ))
+            ) : (
+              <div className="rounded-2xl border border-dashed border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-6 text-sm text-[var(--color-muted)]">
+                Favorite merchants will appear after a few completed orders.
+              </div>
+            )}
+          </div>
+        </article>
+
+        <article className="glass-panel rounded-[1.7rem] p-6">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-2xl font-semibold tracking-tight text-[var(--color-ink)]">
+              Recent notifications
+            </h2>
+            <Link
+              href="/workspace/profile"
+              className="text-sm font-medium text-[var(--color-accent-strong)] transition hover:opacity-80"
+            >
+              Manage feed
+            </Link>
+          </div>
+
+          <div className="mt-5 space-y-3">
+            {data.notifications.length ? (
+              data.notifications.map((notification) => {
+                const content = (
+                  <>
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-[var(--color-ink)]">
+                            {notification.title}
+                          </p>
+                          {!notification.isRead ? (
+                            <span className="rounded-full bg-[var(--color-accent-soft)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--color-accent-strong)]">
+                              New
+                            </span>
+                          ) : null}
+                        </div>
+                        <p className="mt-2 text-sm leading-6 text-[var(--color-muted)]">
+                          {notification.message}
+                        </p>
+                      </div>
+                      <p className="shrink-0 text-xs uppercase tracking-[0.18em] text-[var(--color-muted)]">
+                        {notification.type}
+                      </p>
+                    </div>
+                    <p className="mt-3 text-xs uppercase tracking-[0.18em] text-[var(--color-muted)]">
+                      {formatDate(notification.createdAt)}
+                    </p>
+                  </>
+                );
+
+                if (notification.link) {
+                  return (
+                    <Link
+                      key={notification.id}
+                      href={notification.link}
+                      className="block rounded-[1.35rem] border border-[var(--color-border)] bg-white/75 px-4 py-4 transition hover:-translate-y-0.5 hover:shadow-sm"
+                    >
+                      {content}
+                    </Link>
+                  );
+                }
+
+                return (
+                  <div
+                    key={notification.id}
+                    className="rounded-[1.35rem] border border-[var(--color-border)] bg-white/75 px-4 py-4"
+                  >
+                    {content}
+                  </div>
+                );
+              })
+            ) : (
+              <div className="rounded-2xl border border-dashed border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-6 text-sm text-[var(--color-muted)]">
+                No notifications yet.
+              </div>
+            )}
+          </div>
+        </article>
+      </section>
 
       <CustomerOrderPanel data={data.ordering} />
     </div>
