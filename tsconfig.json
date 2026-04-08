@@ -33,21 +33,12 @@
   "exclude": [
     "node_modules",
     "services/**",
-    "components/AI/**",
     "components/Chat/**",
-    "components/Dispute/**",
     "components/Escrow/**",
     "components/KYC/**",
-    "components/RBAC/**",
-    "components/SurgePricing/**",
-    "components/WhatsApp/**",
     "lib/chat.ts",
-    "lib/dispute.ts",
     "lib/escrow.ts",
-    "lib/gemini-ai.ts",
     "lib/kyc.ts",
-    "lib/rbac.ts",
-    "lib/security-compliance.ts",
-    "lib/surge-pricing.ts"
+    "lib/security-compliance.ts"
   ]
 }

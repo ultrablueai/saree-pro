@@ -1,518 +1,314 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { 
-  ExclamationTriangleIcon, 
-  ScaleIcon,
-  DocumentTextIcon,
-  ChatBubbleLeftRightIcon,
-  ClockIcon,
-  UserIcon,
-  FunnelIcon,
-  PlusIcon,
-  EyeIcon
-} from '@heroicons/react/24/outline';
-import { useLocalization } from '../../hooks/useLocalization';
-import { disputeService, Dispute, DisputeFilter, DisputeTemplate } from '../../lib/dispute';
+import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { ExclamationTriangleIcon, ScaleIcon, SparklesIcon } from '@heroicons/react/24/outline';
+import { disputeService, type Dispute, type DisputeFilter, type DisputeTemplate } from '../../lib/dispute';
 import { GlassPanel } from '../PremiumUI/GlassPanel';
-import { PremiumButton } from '../PremiumUI/PremiumButton';
 import { cn } from '../../lib/utils';
 
 interface DisputeCenterProps {
   userId: string;
-  role: 'customer' | 'merchant' | 'admin' | 'mediator';
+  role: 'customer' | 'merchant' | 'driver' | 'admin' | 'owner';
   className?: string;
+}
+
+function formatCurrency(amount: number, currency: string) {
+  return new Intl.NumberFormat('en', {
+    style: 'currency',
+    currency,
+  }).format(amount / 100);
+}
+
+function formatDate(value: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  return new Intl.DateTimeFormat('en', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(new Date(value));
+}
+
+function getStatusTone(status: string) {
+  if (status === 'open') {
+    return 'border-amber-200 bg-amber-50 text-amber-800';
+  }
+
+  if (status === 'resolved') {
+    return 'border-emerald-200 bg-emerald-50 text-emerald-800';
+  }
+
+  return 'border-stone-200 bg-stone-100 text-stone-700';
 }
 
 export function DisputeCenter({ userId, role, className = '' }: DisputeCenterProps) {
   const [disputes, setDisputes] = useState<Dispute[]>([]);
   const [templates, setTemplates] = useState<DisputeTemplate[]>([]);
-  const [filters, setFilters] = useState<DisputeFilter>({});
-  const [showFilters, setShowFilters] = useState(false);
-  const [showNewDispute, setShowNewDispute] = useState(false);
-  const [newDispute, setNewDispute] = useState({
-    type: 'order' as Dispute['type'],
-    title: '',
-    description: '',
-    category: { primary: '', secondary: '' },
+  const [filters, setFilters] = useState<DisputeFilter>({
+    status: 'all',
+    openedByRole: 'all',
+  });
+  const [totals, setTotals] = useState({
+    all: 0,
+    open: 0,
+    resolved: 0,
   });
   const [isLoading, setIsLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  const { t } = useLocalization();
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    loadData();
-  }, [userId, filters]);
+    let isMounted = true;
 
-  const loadData = async () => {
-    try {
-      setIsLoading(true);
-      
-      // Load disputes
-      const disputesData = await disputeService.getDisputes(userId, filters);
-      setDisputes(disputesData.disputes);
-      
-      // Load templates
-      const templatesData = disputeService.getDisputeTemplates();
-      setTemplates(templatesData);
-    } catch (error) {
-      console.error('Failed to load disputes:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    async function loadData() {
+      try {
+        setIsLoading(true);
+        setError(null);
 
-  const handleCreateDispute = async () => {
-    if (!newDispute.title.trim() || !newDispute.description.trim()) return;
+        const [data, templateList] = await Promise.all([
+          disputeService.getDisputes(userId, filters),
+          Promise.resolve(disputeService.getDisputeTemplates()),
+        ]);
 
-    try {
-      setIsSubmitting(true);
-      
-      await disputeService.createDispute({
-        type: newDispute.type,
-        severity: 'medium',
-        title: newDispute.title,
-        description: newDispute.description,
-        raisedBy: userId,
-        category: newDispute.category,
-      });
+        if (!isMounted) {
+          return;
+        }
 
-      // Reset form
-      setNewDispute({
-        type: 'order',
-        title: '',
-        description: '',
-        category: { primary: '', secondary: '' },
-      });
-      setShowNewDispute(false);
-      
-      // Reload disputes
-      await loadData();
-    } catch (error) {
-      console.error('Failed to create dispute:', error);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+        setDisputes(data.disputes);
+        setTotals(data.totals);
+        setTemplates(templateList);
+      } catch (loadError) {
+        if (!isMounted) {
+          return;
+        }
 
-  const handleFilterChange = (newFilters: DisputeFilter) => {
-    setFilters(newFilters);
-  };
-
-  const handleAddEvidence = async (disputeId: string) => {
-    const fileInput = document.createElement('input');
-    fileInput.type = 'file';
-    fileInput.accept = 'image/*,video/*,.pdf,.doc,.docx';
-    fileInput.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (file) {
-        try {
-          const formData = new FormData();
-          formData.append('file', file);
-          formData.append('disputeId', disputeId);
-          formData.append('uploadedBy', userId);
-          
-          await fetch('/api/disputes/evidence', {
-            method: 'POST',
-            body: formData,
-          });
-          
-          await loadData();
-        } catch (error) {
-          console.error('Failed to upload evidence:', error);
+        setError(loadError instanceof Error ? loadError.message : 'Failed to load disputes');
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
         }
       }
+    }
+
+    void loadData();
+
+    return () => {
+      isMounted = false;
     };
-    fileInput.click();
-  };
-
-  const getDisputeTypeIcon = (type: Dispute['type']) => {
-    const iconMap = {
-      order: '📦',
-      payment: '💰',
-      delivery: '🚚',
-      quality: '⭐',
-      behavior: '👤',
-      fraud: '⚠️',
-      other: '📋',
-    };
-    
-    return iconMap[type] || '📋';
-  };
-
-  const getDisputeSeverityColor = (severity: Dispute['severity']) => {
-    const colorMap = {
-      low: 'border-blue-200 bg-blue-50 text-blue-700',
-      medium: 'border-yellow-200 bg-yellow-50 text-yellow-700',
-      high: 'border-orange-200 bg-orange-50 text-orange-700',
-      critical: 'border-red-200 bg-red-50 text-red-700',
-    };
-    
-    return colorMap[severity] || 'border-gray-200 bg-gray-50 text-gray-700';
-  };
-
-  const getDisputeStatusColor = (status: Dispute['status']) => {
-    const colorMap = {
-      open: 'text-blue-600',
-      investigating: 'text-yellow-600',
-      mediating: 'text-purple-600',
-      resolved: 'text-green-600',
-      closed: 'text-gray-600',
-      escalated: 'text-red-600',
-    };
-    
-    return colorMap[status] || 'text-gray-600';
-  };
-
-  const renderDisputeCard = (dispute: Dispute) => (
-    <GlassPanel key={dispute.id} className="p-4">
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex items-center space-x-3">
-          <div className="text-2xl">
-            {getDisputeTypeIcon(dispute.type)}
-          </div>
-          
-          <div>
-            <h4 className="font-semibold text-gray-900 dark:text-white">
-              {dispute.title}
-            </h4>
-            <div className="flex items-center space-x-2 mt-1">
-              <span className={cn(
-                'px-2 py-1 text-xs rounded-full font-medium',
-                getDisputeSeverityColor(dispute.severity)
-              )}>
-                {dispute.severity.toUpperCase()}
-              </span>
-              
-              <span className={cn(
-                'text-sm font-medium',
-                getDisputeStatusColor(dispute.status)
-              )}>
-                {dispute.status.toUpperCase()}
-              </span>
-            </div>
-            
-            <p className="text-sm text-gray-600 dark:text-gray-300">
-              {dispute.category.primary}
-              {dispute.category.secondary && ` • ${dispute.category.secondary}`}
-            </p>
-          </div>
-        </div>
-        
-        <div className="flex items-center space-x-2">
-          <button
-            onClick={() => handleAddEvidence(dispute.id)}
-            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-          >
-            <PlusIcon className="w-4 h-4 text-gray-500" />
-          </button>
-          
-          <button
-            onClick={() => window.open(`/disputes/${dispute.id}`, '_blank')}
-            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-          >
-            <EyeIcon className="w-4 h-4 text-gray-500" />
-          </button>
-        </div>
-      </div>
-
-      <p className="text-sm text-gray-700 dark:text-gray-300 mb-3">
-        {dispute.description}
-      </p>
-
-      {/* Evidence */}
-      {dispute.evidence && dispute.evidence.length > 0 && (
-        <div className="mb-3">
-          <p className="text-sm font-medium text-gray-600 dark:text-gray-300 mb-2">
-            Evidence ({dispute.evidence.length})
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-            {dispute.evidence.map((evidence, index) => (
-              <div key={index} className="flex items-center space-x-2 p-2 bg-gray-50 dark:bg-gray-800 rounded">
-                <DocumentTextIcon className="w-4 h-4 text-gray-500" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{evidence.type}</p>
-                  <p className="text-xs text-gray-600 dark:text-gray-300 truncate">
-                    {evidence.description}
-                  </p>
-                </div>
-                <button
-                  onClick={() => window.open(evidence.url, '_blank')}
-                  className="text-blue-600 hover:text-blue-700 text-sm"
-                >
-                  View
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Timeline */}
-      {dispute.timeline && dispute.timeline.length > 0 && (
-        <div className="mb-3">
-          <p className="text-sm font-medium text-gray-600 dark:text-gray-300 mb-2">
-            Timeline
-          </p>
-          <div className="space-y-2">
-            {dispute.timeline.slice(0, 3).map((entry, index) => (
-              <div key={index} className="flex items-start space-x-3">
-                <div className="w-2 h-2 bg-blue-600 rounded-full mt-1.5" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium">{entry.action}</p>
-                  <p className="text-xs text-gray-600 dark:text-gray-300">
-                    {entry.description}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    {new Date(entry.performedAt).toLocaleDateString()}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Resolution */}
-      {dispute.resolution && (
-        <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-          <p className="text-sm font-medium text-green-800 dark:text-green-200 mb-1">
-            Resolution
-          </p>
-          <p className="text-sm text-green-700 dark:text-green-300">
-            Action: {dispute.resolution.action}
-          </p>
-          <p className="text-sm text-green-700 dark:text-green-300">
-            {dispute.resolution.details}
-          </p>
-          {dispute.resolution.amount && (
-            <p className="text-sm text-green-700 dark:text-green-300">
-              Amount: {dispute.resolution.amount} {dispute.resolution.currency}
-            </p>
-          )}
-        </div>
-      )}
-
-      <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mt-3">
-        <div className="flex items-center space-x-2">
-          <span>Created: {new Date(dispute.createdAt).toLocaleDateString()}</span>
-          {dispute.escalatedAt && (
-            <span>Escalated: {new Date(dispute.escalatedAt).toLocaleDateString()}</span>
-          )}
-        </div>
-        
-        <div className="flex items-center space-x-4">
-          <span>By: {dispute.raisedBy}</span>
-          {dispute.respondentId && (
-            <span>vs {dispute.respondentId}</span>
-          )}
-        </div>
-      </div>
-    </GlassPanel>
-  );
-
-  if (isLoading) {
-    return (
-      <div className={cn('flex items-center justify-center p-8', className)}>
-        <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
+  }, [filters, userId]);
 
   return (
     <div className={cn('space-y-6', className)}>
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
-          <ScaleIcon className="w-6 h-6 mr-3" />
-          Dispute Center
-        </h2>
-        
-        <div className="flex items-center space-x-2">
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className="flex items-center space-x-2 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-          >
-            <FunnelIcon className="w-4 h-4" />
-            <span>Filters</span>
-          </button>
-          
-          {role !== 'customer' && (
-            <PremiumButton
-              onClick={() => setShowNewDispute(true)}
-              icon={<PlusIcon className="w-4 h-4" />}
-            >
-              New Dispute
-            </PremiumButton>
-          )}
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h2 className="flex items-center text-2xl font-semibold text-gray-900 dark:text-white">
+            <ScaleIcon className="mr-3 h-6 w-6" />
+            Dispute Center
+          </h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-300">
+            Live dispute visibility for the current workspace role. This slice is read-only and
+            reflects the same order dispute data used by the server pages.
+          </p>
+        </div>
+
+        <div className="grid min-w-72 gap-3 sm:grid-cols-3">
+          <GlassPanel className="p-4">
+            <p className="text-xs uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">Total</p>
+            <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">{totals.all}</p>
+          </GlassPanel>
+          <GlassPanel className="p-4">
+            <p className="text-xs uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">Open</p>
+            <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">{totals.open}</p>
+          </GlassPanel>
+          <GlassPanel className="p-4">
+            <p className="text-xs uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">Resolved</p>
+            <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">{totals.resolved}</p>
+          </GlassPanel>
         </div>
       </div>
 
-      {/* Filters */}
-      {showFilters && (
-        <GlassPanel className="p-4 mb-6">
-          <h3 className="font-semibold mb-3">Filter Disputes</h3>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">Type</label>
-              <select
-                value={filters.type || ''}
-                onChange={(e) => handleFilterChange({ ...filters, type: e.target.value as Dispute['type'] })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-              >
-                <option value="">All Types</option>
-                <option value="order">Order</option>
-                <option value="payment">Payment</option>
-                <option value="delivery">Delivery</option>
-                <option value="quality">Quality</option>
-                <option value="behavior">Behavior</option>
-                <option value="fraud">Fraud</option>
-                <option value="other">Other</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-1">Severity</label>
-              <select
-                value={filters.severity || ''}
-                onChange={(e) => handleFilterChange({ ...filters, severity: e.target.value as Dispute['severity'] })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-              >
-                <option value="">All Severities</option>
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-                <option value="critical">Critical</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-1">Status</label>
-              <select
-                value={filters.status || ''}
-                onChange={(e) => handleFilterChange({ ...filters, status: e.target.value as Dispute['status'] })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-              >
-                <option value="">All Statuses</option>
-                <option value="open">Open</option>
-                <option value="investigating">Investigating</option>
-                <option value="mediating">Mediating</option>
-                <option value="resolved">Resolved</option>
-                <option value="closed">Closed</option>
-                <option value="escalated">Escalated</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-1">Date Range</label>
-              <input
-                type="date"
-                value={filters.dateRange?.start?.toISOString().split('T')[0] || ''}
-                onChange={(e) => handleFilterChange({ 
-                  ...filters, 
-                  dateRange: { 
-                    ...filters.dateRange, 
-                    start: new Date(e.target.value) 
-                  } 
-                })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-              />
-            </div>
-          </div>
-        </GlassPanel>
-      )}
-
-      {/* New Dispute Form */}
-      {showNewDispute && (
-        <GlassPanel className="p-6 mb-6">
-          <h3 className="text-lg font-semibold mb-4">Create New Dispute</h3>
-          
-          <div className="space-y-4">
-            {/* Type Selection */}
-            <div>
-              <label className="block text-sm font-medium mb-2">Dispute Type</label>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                {templates.map((template) => (
-                  <button
-                    key={template.id}
-                    onClick={() => setNewDispute({ ...newDispute, type: template.type })}
-                    className={cn(
-                      'p-3 border rounded-lg text-sm transition-colors',
-                      newDispute.type === template.type
-                        ? 'border-blue-500 bg-blue-50 text-blue-700'
-                        : 'border-gray-300 hover:border-gray-400'
-                    )}
-                  >
-                    <div className="text-xl mb-1">{getDisputeTypeIcon(template.type)}</div>
-                    <div className="font-medium">{template.title}</div>
-                    <div className="text-xs text-gray-500">{template.estimatedResolutionTime}</div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Title */}
-            <div>
-              <label className="block text-sm font-medium mb-1">Title</label>
-              <input
-                type="text"
-                value={newDispute.title}
-                onChange={(e) => setNewDispute({ ...newDispute, title: e.target.value })}
-                placeholder="Brief title for your dispute"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                maxLength={100}
-              />
-            </div>
-
-            {/* Description */}
-            <div>
-              <label className="block text-sm font-medium mb-1">Description</label>
-              <textarea
-                value={newDispute.description}
-                onChange={(e) => setNewDispute({ ...newDispute, description: e.target.value })}
-                placeholder="Detailed description of the issue"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white resize-none"
-                rows={4}
-                maxLength={1000}
-              />
-            </div>
-
-            {/* Submit Button */}
-            <PremiumButton
-              onClick={handleCreateDispute}
-              disabled={isSubmitting || !newDispute.title.trim() || !newDispute.description.trim()}
-              loading={isSubmitting}
-              className="w-full"
+      <GlassPanel className="p-4">
+        <div className="grid gap-4 md:grid-cols-[1fr_1fr]">
+          <label className="space-y-2 text-sm font-medium text-gray-900 dark:text-white">
+            Status
+            <select
+              value={filters.status ?? 'all'}
+              onChange={(event) =>
+                setFilters((current) => ({
+                  ...current,
+                  status: event.target.value,
+                }))
+              }
+              className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-[var(--color-accent)] dark:border-gray-600 dark:bg-gray-800 dark:text-white"
             >
-              {isSubmitting ? 'Creating...' : 'Create Dispute'}
-            </PremiumButton>
-          </div>
-        </GlassPanel>
-      )}
+              <option value="all">All statuses</option>
+              <option value="open">Open</option>
+              <option value="resolved">Resolved</option>
+            </select>
+          </label>
 
-      {/* Disputes List */}
-      {disputes.length === 0 ? (
-        <div className="text-center py-12">
-          <div className="text-gray-400 mb-4">
-            <ScaleIcon className="w-12 h-12 mx-auto" />
+          <label className="space-y-2 text-sm font-medium text-gray-900 dark:text-white">
+            Opened by
+            <select
+              value={filters.openedByRole ?? 'all'}
+              onChange={(event) =>
+                setFilters((current) => ({
+                  ...current,
+                  openedByRole: event.target.value,
+                }))
+              }
+              className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-[var(--color-accent)] dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+            >
+              <option value="all">All roles</option>
+              <option value="customer">Customer</option>
+              <option value="merchant">Merchant</option>
+              <option value="driver">Driver</option>
+            </select>
+          </label>
+        </div>
+      </GlassPanel>
+
+      <GlassPanel className="p-4">
+        <div className="flex items-center gap-3">
+          <SparklesIcon className="h-5 w-5 text-[var(--color-accent)]" />
+          <div>
+            <p className="text-sm font-semibold text-gray-900 dark:text-white">
+              Ready-to-handle dispute playbooks
+            </p>
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              Templates are guidance cards for the current read-only dispute workflow.
+            </p>
           </div>
-          <p className="text-lg font-medium text-gray-600 dark:text-gray-300">
-            No disputes found
-          </p>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            {role !== 'customer' && 'Create a new dispute to get started'}
-          </p>
         </div>
-      ) : (
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold mb-4">
-            Disputes ({disputes.length})
-          </h3>
-          {disputes.map(renderDisputeCard)}
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          {templates.map((template) => (
+            <div
+              key={template.id}
+              className="rounded-[1.1rem] border border-[var(--color-border)] bg-white/70 p-4"
+            >
+              <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-muted)]">
+                {template.type}
+              </p>
+              <p className="mt-2 font-semibold text-[var(--color-ink)]">{template.title}</p>
+              <p className="mt-2 text-sm leading-6 text-[var(--color-muted)]">
+                {template.description}
+              </p>
+            </div>
+          ))}
         </div>
-      )}
+      </GlassPanel>
+
+      {isLoading ? (
+        <div className="flex items-center justify-center p-8">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+        </div>
+      ) : null}
+
+      {error ? (
+        <GlassPanel className="p-5 text-sm text-red-700 dark:text-red-300">
+          {error}
+        </GlassPanel>
+      ) : null}
+
+      {!isLoading && !error ? (
+        disputes.length > 0 ? (
+          <div className="space-y-4">
+            {disputes.map((dispute) => (
+              <GlassPanel key={dispute.id} className="p-5">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                        {dispute.orderCode}
+                      </p>
+                      <span
+                        className={cn(
+                          'rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em]',
+                          getStatusTone(dispute.status),
+                        )}
+                      >
+                        {dispute.status}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                      {dispute.customerName} - {dispute.merchantName}
+                      {dispute.driverName ? ` - ${dispute.driverName}` : ''}
+                    </p>
+                  </div>
+
+                  <span className="rounded-full border border-[var(--color-border)] px-3 py-1 text-xs uppercase tracking-[0.18em] text-[var(--color-muted)]">
+                    opened by {dispute.openedByRole}
+                  </span>
+                </div>
+
+                <div className="mt-4 grid gap-4 lg:grid-cols-[0.68fr_0.32fr]">
+                  <div>
+                    <p className="font-semibold text-[var(--color-ink)]">{dispute.reason}</p>
+                    <p className="mt-2 text-sm leading-6 text-[var(--color-muted)]">
+                      {dispute.details ?? 'No extra details were provided for this dispute.'}
+                    </p>
+
+                    {dispute.resolution ? (
+                      <div className="mt-4 rounded-[1rem] border border-[var(--color-border)] bg-white/70 p-4">
+                        <p className="text-sm font-semibold text-[var(--color-ink)]">
+                          Resolution: {dispute.resolution}
+                        </p>
+                        <p className="mt-2 text-sm leading-6 text-[var(--color-muted)]">
+                          {dispute.resolutionNote ?? 'No resolution note was recorded.'}
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="rounded-[1rem] border border-[var(--color-border)] bg-white/70 p-4">
+                    <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-muted)]">
+                      Order value
+                    </p>
+                    <p className="mt-2 text-lg font-semibold text-[var(--color-ink)]">
+                      {formatCurrency(dispute.totalAmount, dispute.currency)}
+                    </p>
+                    <p className="mt-3 text-sm text-[var(--color-muted)]">
+                      Opened {formatDate(dispute.createdAt)}
+                    </p>
+                    {dispute.resolvedAt ? (
+                      <p className="mt-2 text-sm text-[var(--color-muted)]">
+                        Resolved {formatDate(dispute.resolvedAt)}
+                      </p>
+                    ) : null}
+                    <p className="mt-4 text-xs uppercase tracking-[0.18em] text-[var(--color-muted)]">
+                      Current role: {role}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <Link
+                    href={`/workspace/orders/${dispute.orderId}`}
+                    className="text-sm font-medium text-[var(--color-accent-strong)] transition hover:opacity-80"
+                  >
+                    Open order details
+                  </Link>
+                  <Link
+                    href="/workspace/orders"
+                    className="text-sm font-medium text-[var(--color-accent-strong)] transition hover:opacity-80"
+                  >
+                    Orders hub
+                  </Link>
+                </div>
+              </GlassPanel>
+            ))}
+          </div>
+        ) : (
+          <GlassPanel className="p-8 text-center">
+            <ExclamationTriangleIcon className="mx-auto h-10 w-10 text-[var(--color-muted)]" />
+            <p className="mt-4 text-lg font-semibold text-[var(--color-ink)]">No disputes found</p>
+            <p className="mt-2 text-sm text-[var(--color-muted)]">
+              The current filters did not match any visible disputes for this workspace session.
+            </p>
+          </GlassPanel>
+        )
+      ) : null}
     </div>
   );
 }

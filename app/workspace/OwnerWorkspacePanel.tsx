@@ -190,6 +190,18 @@ export function OwnerWorkspacePanel({ data, formatDate }: OwnerWorkspacePanelPro
             >
               Disputes
             </Link>
+            <Link
+              href="/workspace/access"
+              className="rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2 text-sm font-medium text-[var(--color-ink)] transition hover:bg-white"
+            >
+              Access
+            </Link>
+            <Link
+              href="/workspace/disputes"
+              className="rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2 text-sm font-medium text-[var(--color-ink)] transition hover:bg-white"
+            >
+              Disputes
+            </Link>
           </div>
         </div>
       </div>

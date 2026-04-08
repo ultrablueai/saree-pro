@@ -158,6 +158,11 @@ export default async function WorkspacePage() {
                   Orders hub
                 </Button>
               </Link>
+              <Link href="/workspace/support">
+                <Button variant="ghost" className="bg-white/75">
+                  Support
+                </Button>
+              </Link>
               {workspace.type === "customer" ? (
                 <Link href="/workspace/wallet">
                   <Button variant="ghost" className="bg-white/75">

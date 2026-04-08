@@ -1,221 +1,220 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { 
-  ExclamationTriangleIcon, 
+import { useEffect, useState } from 'react';
+import {
+  ArrowPathIcon,
   ClockIcon,
-  ArrowTrendingUpIcon,
-  CheckCircleIcon 
+  ExclamationTriangleIcon,
+  SparklesIcon,
 } from '@heroicons/react/24/outline';
-import { useLocalization } from '../../hooks/useLocalization';
-import { useFormattedCurrency } from '../../hooks/useLocalization';
-import { 
-  surgePricingEngine, 
-  SurgePricingResult, 
-  getSurgeColor 
-} from '../../lib/surge-pricing';
+import { useFormattedCurrency, useLocalization } from '../../hooks/useLocalization';
+import { getSurgeColor, type SurgePricingResult } from '../../lib/surge-pricing';
 import { GlassPanel } from '../PremiumUI/GlassPanel';
 
 interface SurgePricingIndicatorProps {
   locationId: string;
+  merchantId?: string;
   baseFee?: number;
   className?: string;
   showDetails?: boolean;
-  onPricingChange?: (result: SurgePricingResult) => void;
+}
+
+interface SurgePayload {
+  pricing?: SurgePricingResult;
+  data?: SurgePricingResult;
+  factors?: {
+    orderCount: number;
+    availableDrivers: number;
+    normalizedLocationId: string;
+  };
+  refreshedAt?: string;
 }
 
 export function SurgePricingIndicator({
   locationId,
+  merchantId,
   baseFee,
   className = '',
   showDetails = true,
-  onPricingChange,
 }: SurgePricingIndicatorProps) {
   const [pricingResult, setPricingResult] = useState<SurgePricingResult | null>(null);
+  const [refreshedAt, setRefreshedAt] = useState<string | null>(null);
+  const [loadMeta, setLoadMeta] = useState<{ orderCount: number; availableDrivers: number } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const { t } = useLocalization();
   const formatCurrency = useFormattedCurrency();
 
   useEffect(() => {
-    const calculatePricing = () => {
+    let isCancelled = false;
+
+    async function loadPricing() {
       setIsLoading(true);
-      
-      // Simulate API call delay
-      setTimeout(() => {
-        const result = surgePricingEngine.calculateSurgePricing(locationId, {
-          orderCount: Math.floor(Math.random() * 20), // Simulate current demand
-          availableDrivers: Math.floor(Math.random() * 10) + 1, // Simulate available drivers
+      setError(null);
+
+      try {
+        const params = new URLSearchParams();
+        if (merchantId) params.set('merchantId', merchantId);
+        if (baseFee !== undefined) params.set('baseFee', String(baseFee));
+        const suffix = params.toString() ? `?${params.toString()}` : '';
+        const response = await fetch(`/api/surge-pricing/${encodeURIComponent(locationId)}${suffix}`, {
+          method: 'GET',
+          headers: { Accept: 'application/json' },
+          cache: 'no-store',
         });
 
-        if (baseFee) {
-          result.originalFee = baseFee;
-          result.surgeFee = baseFee * (result.multiplier - 1);
-          result.finalFee = baseFee * result.multiplier;
+        if (!response.ok) {
+          throw new Error('Unable to load surge pricing');
         }
 
-        setPricingResult(result);
-        setIsLoading(false);
-        onPricingChange?.(result);
-      }, 500);
+        const payload = (await response.json()) as SurgePayload;
+        const pricing = payload.pricing ?? payload.data ?? null;
+
+        if (!isCancelled) {
+          setPricingResult(pricing);
+          setRefreshedAt(payload.refreshedAt ?? null);
+          setLoadMeta(
+            payload.factors
+              ? {
+                  orderCount: payload.factors.orderCount,
+                  availableDrivers: payload.factors.availableDrivers,
+                }
+              : null,
+          );
+        }
+      } catch (loadError) {
+        if (!isCancelled) {
+          setError(loadError instanceof Error ? loadError.message : 'Unable to load surge pricing');
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void loadPricing();
+    const interval = window.setInterval(() => {
+      void loadPricing();
+    }, 60000);
+
+    return () => {
+      isCancelled = true;
+      window.clearInterval(interval);
     };
-
-    calculatePricing();
-
-    // Update pricing every 30 seconds
-    const interval = setInterval(calculatePricing, 30000);
-
-    return () => clearInterval(interval);
-  }, [locationId, baseFee, onPricingChange]);
+  }, [baseFee, locationId, merchantId]);
 
   if (isLoading) {
     return (
       <GlassPanel className={`p-4 ${className}`}>
-        <div className="flex items-center space-x-3">
-          <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-          <span className="text-gray-600 dark:text-gray-300">
-            {t('loading')}
-          </span>
+        <div className="flex items-center gap-3 text-sm text-gray-600 dark:text-gray-300">
+          <ArrowPathIcon className="h-5 w-5 animate-spin" />
+          <span>{t('loading')}</span>
         </div>
       </GlassPanel>
     );
   }
 
-  if (!pricingResult) {
-    return null;
+  if (error || !pricingResult) {
+    return (
+      <GlassPanel className={`p-4 ${className}`}>
+        <div className="flex items-center gap-3 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+          <ExclamationTriangleIcon className="h-5 w-5" />
+          <span>{error ?? 'Surge pricing data is unavailable right now.'}</span>
+        </div>
+      </GlassPanel>
+    );
   }
-
-  const getIcon = () => {
-    if (!pricingResult.isActive) {
-      return <CheckCircleIcon className="w-5 h-5 text-green-600" />;
-    }
-    
-    if (pricingResult.multiplier >= 2.0) {
-      return <ArrowTrendingUpIcon className="w-5 h-5 text-red-600" />;
-    }
-    
-    return <ExclamationTriangleIcon className="w-5 h-5 text-yellow-600" />;
-  };
-
-  const getBackgroundColor = () => {
-    if (!pricingResult.isActive) return 'bg-green-50 dark:bg-green-900/20';
-    if (pricingResult.multiplier >= 2.0) return 'bg-red-50 dark:bg-red-900/20';
-    return 'bg-yellow-50 dark:bg-yellow-900/20';
-  };
 
   return (
     <GlassPanel className={`${className}`}>
-      <div className={`p-4 rounded-lg ${getBackgroundColor()}`}>
-        {/* Header */}
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center space-x-2">
-            {getIcon()}
-            <h3 className="font-semibold text-gray-900 dark:text-white">
-              {pricingResult.isActive ? t('surge_pricing') : 'Standard Pricing'}
-            </h3>
-          </div>
-          
-          {pricingResult.isActive && (
-            <span className={`px-2 py-1 text-xs font-medium rounded-full ${getSurgeColor(pricingResult.multiplier)} bg-white/80`}>
-              {(pricingResult.multiplier * 100).toFixed(0)}%
-            </span>
-          )}
-        </div>
-
-        {/* Pricing Display */}
-        <div className="space-y-2 mb-3">
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-600 dark:text-gray-300">
-              {t('delivery_fee')}
-            </span>
-            <span className="font-bold text-lg text-gray-900 dark:text-white">
-              {formatCurrency(pricingResult.finalFee)}
-            </span>
-          </div>
-          
-          {pricingResult.isActive && (
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-500 dark:text-gray-400">
-                Base fee
-              </span>
-              <span className="line-through text-gray-500">
-                {formatCurrency(pricingResult.originalFee)}
+      <div className="space-y-4 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.22em] text-[var(--color-muted)]">
+              {pricingResult.isActive ? t('surge_pricing') : 'Delivery pricing'}
+            </p>
+            <div className="mt-2 flex items-center gap-3">
+              <p className="text-2xl font-semibold text-[var(--color-ink)]">
+                {formatCurrency(pricingResult.finalFee)}
+              </p>
+              <span className={`text-sm font-semibold ${getSurgeColor(pricingResult.multiplier)}`}>
+                x{pricingResult.multiplier.toFixed(2)}
               </span>
             </div>
-          )}
+          </div>
+
+          <div
+            className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${
+              pricingResult.isActive
+                ? 'bg-amber-100 text-amber-800'
+                : 'bg-emerald-100 text-emerald-800'
+            }`}
+          >
+            {pricingResult.isActive ? 'Live surge' : 'Standard'}
+          </div>
         </div>
 
-        {/* Details */}
-        {showDetails && (
-          <div className="space-y-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-            {/* Reason */}
-            {pricingResult.isActive && (
-              <div className="flex items-start space-x-2">
-                <ExclamationTriangleIcon className="w-4 h-4 text-yellow-600 mt-0.5 shrink-0" />
-                <div>
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">
-                    {t('high_demand')}
-                  </p>
-                  <p className="text-xs text-gray-600 dark:text-gray-300">
-                    {pricingResult.reason}
-                  </p>
-                </div>
-              </div>
-            )}
+        <div className="rounded-2xl border border-[var(--color-border)] bg-white/75 p-4">
+          <div className="flex items-center justify-between gap-4 text-sm">
+            <span className="text-[var(--color-muted)]">Base fee</span>
+            <span className="font-medium text-[var(--color-ink)]">
+              {formatCurrency(pricingResult.originalFee)}
+            </span>
+          </div>
+          <div className="mt-3 flex items-center justify-between gap-4 text-sm">
+            <span className="text-[var(--color-muted)]">Surge impact</span>
+            <span className="font-medium text-[var(--color-ink)]">
+              {formatCurrency(pricingResult.surgeFee)}
+            </span>
+          </div>
+        </div>
 
-            {/* Wait Time */}
-            <div className="flex items-center space-x-2">
-              <ClockIcon className="w-4 h-4 text-gray-600 dark:text-gray-300" />
+        {showDetails ? (
+          <div className="space-y-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]/80 p-4">
+            <div className="flex items-start gap-2">
+              <SparklesIcon className="mt-0.5 h-4 w-4 text-[var(--color-accent-strong)]" />
               <div>
-                <p className="text-sm font-medium text-gray-900 dark:text-white">
-                  Estimated wait time
-                </p>
-                <p className="text-xs text-gray-600 dark:text-gray-300">
+                <p className="text-sm font-medium text-[var(--color-ink)]">Why this price?</p>
+                <p className="mt-1 text-sm text-[var(--color-muted)]">{pricingResult.reason}</p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2">
+              <ClockIcon className="mt-0.5 h-4 w-4 text-[var(--color-accent-strong)]" />
+              <div>
+                <p className="text-sm font-medium text-[var(--color-ink)]">Estimated wait time</p>
+                <p className="mt-1 text-sm text-[var(--color-muted)]">
                   {pricingResult.estimatedWaitTime} minutes
                 </p>
               </div>
             </div>
 
-            {/* Surge Info */}
-            {pricingResult.isActive && (
-              <div className="bg-yellow-100 dark:bg-yellow-900/30 p-3 rounded-lg">
-                <p className="text-xs font-medium text-yellow-800 dark:text-yellow-200">
-                  💡 Tip: Order now to lock in current pricing or wait for surge to end
-                </p>
+            {loadMeta ? (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-xl bg-white px-3 py-3 text-sm">
+                  <p className="text-[var(--color-muted)]">Recent orders</p>
+                  <p className="mt-1 font-semibold text-[var(--color-ink)]">{loadMeta.orderCount}</p>
+                </div>
+                <div className="rounded-xl bg-white px-3 py-3 text-sm">
+                  <p className="text-[var(--color-muted)]">Available drivers</p>
+                  <p className="mt-1 font-semibold text-[var(--color-ink)]">
+                    {loadMeta.availableDrivers}
+                  </p>
+                </div>
               </div>
-            )}
+            ) : null}
+
+            {refreshedAt ? (
+              <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-muted)]">
+                Refreshed {new Date(refreshedAt).toLocaleTimeString()}
+              </p>
+            ) : null}
           </div>
-        )}
+        ) : null}
       </div>
     </GlassPanel>
   );
 }
 
-// Hook for surge pricing
-export function useSurgePricing(locationId: string, baseFee?: number) {
-  const [pricingResult, setPricingResult] = useState<SurgePricingResult | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const calculatePricing = () => {
-      setIsLoading(true);
-      
-      const result = surgePricingEngine.calculateSurgePricing(locationId);
-      
-      if (baseFee) {
-        result.originalFee = baseFee;
-        result.surgeFee = baseFee * (result.multiplier - 1);
-        result.finalFee = baseFee * result.multiplier;
-      }
-
-      setPricingResult(result);
-      setIsLoading(false);
-    };
-
-    calculatePricing();
-    const interval = setInterval(calculatePricing, 30000);
-
-    return () => clearInterval(interval);
-  }, [locationId, baseFee]);
-
-  return { pricingResult, isLoading };
-}
+export default SurgePricingIndicator;

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SmartSearch } from "@/components/AI/SmartSearch";
 import { searchMerchants } from "@/lib/merchant-search";
 
 function formatMoney(amount: number, currency: string) {
@@ -62,6 +63,17 @@ export default async function MerchantsPage({
             Search now runs against the live merchant tables and opening hours, so filters and
             availability reflect the active database instead of a static list.
           </p>
+
+          <div className="mt-6 rounded-[1.6rem] border border-[var(--color-border)] bg-white/60 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--color-muted)]">
+              Smart search
+            </p>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--color-muted)]">
+              Search dishes, categories, and merchant profiles from one place. Results now come
+              from the live catalog instead of a browser-side Gemini call.
+            </p>
+            <SmartSearch className="mt-4" />
+          </div>
 
           <form className="mt-6 grid gap-3 rounded-[1.5rem] border border-[var(--color-border)] bg-white/75 p-4 md:grid-cols-[1.4fr_0.9fr_0.8fr_0.8fr_auto]">
             <input

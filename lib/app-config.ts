@@ -3,6 +3,8 @@ export const appConfig = {
   description:
     "A multi-role delivery platform for customers, merchants, drivers, and operations teams.",
   supportEmail: "ops@sareepro.app",
+  supportPhone: "+966511111111",
+  supportWhatsApp: "+966500000000",
   roles: [
     {
       key: "customer",

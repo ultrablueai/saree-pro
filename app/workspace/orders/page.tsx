@@ -54,6 +54,11 @@ export default async function OrdersIndexPage({
               Unified order list for operations, driver assignment, dispute review, and order
               detail navigation.
             </p>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <Link href="/workspace/disputes">
+                <Button variant="ghost">Disputes view</Button>
+              </Link>
+            </div>
           </div>
 
           <div className="grid min-w-72 gap-3 sm:grid-cols-5">

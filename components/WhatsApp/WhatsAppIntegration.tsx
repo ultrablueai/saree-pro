@@ -1,452 +1,230 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { 
-  ChatBubbleLeftRightIcon, 
-  PhoneIcon, 
-  VideoCameraIcon,
-  MicrophoneIcon,
-  PaperClipIcon,
-  FaceSmileIcon
+import { useMemo, useState } from 'react';
+import {
+  ArrowTopRightOnSquareIcon,
+  ChatBubbleLeftRightIcon,
+  ClipboardDocumentCheckIcon,
+  PhoneIcon,
 } from '@heroicons/react/24/outline';
 import { useLocalization } from '../../hooks/useLocalization';
 import { GlassPanel } from '../PremiumUI/GlassPanel';
 import { PremiumButton } from '../PremiumUI/PremiumButton';
 import { cn } from '../../lib/utils';
 
-interface WhatsAppMessage {
-  id: string;
-  content: string;
-  type: 'text' | 'image' | 'file' | 'location';
-  timestamp: Date;
-  isFromCustomer: boolean;
-  status: 'sending' | 'sent' | 'delivered' | 'read';
-  metadata?: {
-    fileName?: string;
-    location?: {
-      lat: number;
-      lng: number;
-      address: string;
-    };
-  };
-}
-
 interface WhatsAppIntegrationProps {
   phoneNumber?: string;
   businessNumber?: string;
+  businessName?: string;
   className?: string;
-  onOrderPlaced?: (orderData: any) => void;
+  defaultIntent?: 'support' | 'order' | 'delivery' | 'merchant';
+  supportMessage?: string;
+  orderMessage?: string;
 }
+
+const QUICK_ACTIONS = [
+  {
+    id: 'support',
+    label: 'General support',
+    template: 'Hello Saree Pro support, I need help with my account or an order.',
+  },
+  {
+    id: 'order',
+    label: 'Order help',
+    template: 'Hello, I need help with my current order. Please assist me.',
+  },
+  {
+    id: 'delivery',
+    label: 'Delivery update',
+    template: 'Hello, I need a delivery status update for my order.',
+  },
+  {
+    id: 'merchant',
+    label: 'Merchant question',
+    template: 'Hello, I have a question for a merchant on Saree Pro.',
+  },
+] as const;
 
 export function WhatsAppIntegration({
   phoneNumber = '+966500000000',
   businessNumber = '+966511111111',
+  businessName = 'Saree Pro Support',
   className = '',
-  onOrderPlaced,
+  defaultIntent = 'support',
+  supportMessage,
+  orderMessage,
 }: WhatsAppIntegrationProps) {
-  const [messages, setMessages] = useState<WhatsAppMessage[]>([]);
-  const [newMessage, setNewMessage] = useState('');
-  const [isConnected, setIsConnected] = useState(false);
-  const [isTyping, setIsTyping] = useState(false);
-  const [showOrderForm, setShowOrderForm] = useState(false);
-  const [orderData, setOrderData] = useState({
-    items: [] as string[],
-    address: '',
-    notes: '',
-  });
-  
-  const { t, isRTL } = useLocalization();
+  const [selectedIntent, setSelectedIntent] = useState(defaultIntent);
+  const [customMessage, setCustomMessage] = useState('');
+  const { t } = useLocalization();
 
-  useEffect(() => {
-    // Simulate WhatsApp connection
-    setTimeout(() => {
-      setIsConnected(true);
-      setMessages([
-        {
-          id: '1',
-          content: 'Welcome to Saree Pro! 🍔 How can we help you today?',
-          type: 'text',
-          timestamp: new Date(),
-          isFromCustomer: false,
-          status: 'delivered',
-        }
-      ]);
-    }, 1000);
-  }, []);
+  const activeTemplate = useMemo(
+    () =>
+      (
+        QUICK_ACTIONS.map((item) => {
+          if (item.id === 'support' && supportMessage) {
+            return { ...item, template: supportMessage };
+          }
 
-  const sendMessage = async () => {
-    if (!newMessage.trim()) return;
+          if (item.id === 'order' && orderMessage) {
+            return { ...item, template: orderMessage };
+          }
 
-    const message: WhatsAppMessage = {
-      id: Date.now().toString(),
-      content: newMessage.trim(),
-      type: 'text',
-      timestamp: new Date(),
-      isFromCustomer: true,
-      status: 'sending',
-    };
+          return item;
+        }).find((item) => item.id === selectedIntent) ?? QUICK_ACTIONS[0]
+      ),
+    [orderMessage, selectedIntent, supportMessage],
+  );
 
-    setMessages(prev => [...prev, message]);
-    setNewMessage('');
+  const composedMessage = customMessage.trim() || activeTemplate.template;
+  const sanitizedPhone = phoneNumber.replace(/[^\d]/g, '');
 
-    // Simulate sending to WhatsApp
-    setTimeout(() => {
-      setMessages(prev => 
-        prev.map(msg => 
-          msg.id === message.id 
-            ? { ...msg, status: 'sent' as const }
-            : msg
-        )
-      );
-    }, 1000);
+  function openWhatsApp() {
+    const text = encodeURIComponent(composedMessage);
+    window.open(`https://wa.me/${sanitizedPhone}?text=${text}`, '_blank', 'noopener,noreferrer');
+  }
 
-    // Simulate response
-    setTimeout(() => {
-      const response = generateAIResponse(message.content);
-      setMessages(prev => [...prev, response]);
-    }, 2000);
-  };
-
-  const generateAIResponse = (userMessage: string): WhatsAppMessage => {
-    const lowerMessage = userMessage.toLowerCase();
-    
-    // Order-related keywords
-    if (lowerMessage.includes('order') || lowerMessage.includes('طلب')) {
-      setShowOrderForm(true);
-      return {
-        id: Date.now().toString(),
-        content: 'I\'d be happy to help you place an order! 📝 What would you like to order today?',
-        type: 'text',
-        timestamp: new Date(),
-        isFromCustomer: false,
-        status: 'delivered',
-      };
+  async function copyMessage() {
+    try {
+      await navigator.clipboard.writeText(composedMessage);
+    } catch {
+      // Ignore clipboard failures and keep the launcher path usable.
     }
-    
-    // Menu-related keywords
-    if (lowerMessage.includes('menu') || lowerMessage.includes('قائمة')) {
-      return {
-        id: Date.now().toString(),
-        content: '📋 Here\'s our menu:\n\n🍔 Burgers - 25 SAR\n🍕 Pizza - 35 SAR\n🥗 Shawarma - 20 SAR\n🥗 Falafel - 15 SAR\n\nWhat would you like?',
-        type: 'text',
-        timestamp: new Date(),
-        isFromCustomer: false,
-        status: 'delivered',
-      };
-    }
-    
-    // Location-related keywords
-    if (lowerMessage.includes('location') || lowerMessage.includes('موقع')) {
-      return {
-        id: Date.now().toString(),
-        content: '📍 We deliver to all areas in Riyadh! Delivery time is 30-45 minutes. What\'s your address?',
-        type: 'text',
-        timestamp: new Date(),
-        isFromCustomer: false,
-        status: 'delivered',
-      };
-    }
-    
-    // Default response
-    const responses = [
-      'Thank you for your message! Our team will get back to you shortly. 👍',
-      'I\'m here to help! You can place orders, check our menu, or ask about delivery. 🍴',
-      'Great choice! Would you like to add any drinks or sides to your order? 🥤',
-    ];
-    
-    return {
-      id: Date.now().toString(),
-      content: responses[Math.floor(Math.random() * responses.length)],
-      type: 'text',
-      timestamp: new Date(),
-      isFromCustomer: false,
-      status: 'delivered',
-    };
-  };
-
-  const handleOrderSubmit = () => {
-    if (orderData.items.length === 0 || !orderData.address) return;
-
-    const fullOrder = {
-      id: Date.now().toString(),
-      items: orderData.items,
-      address: orderData.address,
-      notes: orderData.notes,
-      timestamp: new Date(),
-      total: calculateOrderTotal(),
-    };
-
-    onOrderPlaced?.(fullOrder);
-    
-    const confirmationMessage: WhatsAppMessage = {
-      id: Date.now().toString(),
-      content: `✅ Order placed successfully!\n\n📦 Items: ${orderData.items.join(', ')}\n📍 Address: ${orderData.address}\n💰 Total: ${calculateOrderTotal()} SAR\n\nEstimated delivery: 30-45 minutes`,
-      type: 'text',
-      timestamp: new Date(),
-      isFromCustomer: false,
-      status: 'delivered',
-    };
-
-    setMessages(prev => [...prev, confirmationMessage]);
-    setShowOrderForm(false);
-    setOrderData({ items: [], address: '', notes: '' });
-  };
-
-  const calculateOrderTotal = (): number => {
-    const prices: Record<string, number> = {
-      'burger': 25,
-      'pizza': 35,
-      'shawarma': 20,
-      'falafel': 15,
-      'drink': 10,
-    };
-
-    return orderData.items.reduce((total, item) => {
-      return total + (prices[item.toLowerCase()] || 20);
-    }, 0);
-  };
-
-  const addToOrder = (item: string) => {
-    setOrderData(prev => ({
-      ...prev,
-      items: [...prev.items, item],
-    }));
-  };
-
-  const openWhatsApp = () => {
-    const message = encodeURIComponent('Hello! I\'d like to place an order.');
-    window.open(`https://wa.me/${phoneNumber.replace(/[^\d]/g, '')}?text=${message}`, '_blank');
-  };
-
-  const formatTime = (date: Date): string => {
-    return date.toLocaleTimeString([], { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    });
-  };
+  }
 
   return (
-    <div className={cn('flex flex-col h-full max-w-md mx-auto', className)}>
-      {/* Header */}
-      <GlassPanel className="p-4 bg-green-600 text-white">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center">
-              <span className="text-green-600 font-bold">🍴</span>
+    <div className={cn('mx-auto flex h-full max-w-3xl flex-col gap-5', className)}>
+      <GlassPanel className="p-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div>
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+                <ChatBubbleLeftRightIcon className="h-6 w-6" />
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-[var(--color-ink)]">{businessName}</h2>
+                <p className="mt-1 text-sm text-[var(--color-muted)]">
+                  {t('whatsapp_support')}
+                </p>
+              </div>
             </div>
+
+            <p className="mt-4 max-w-2xl text-sm leading-6 text-[var(--color-muted)]">
+              This support entry is now a real WhatsApp launcher. It opens a direct conversation
+              with a prepared message instead of simulating a fake in-app chat.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-[var(--color-border)] bg-white/80 px-4 py-3 text-sm text-[var(--color-muted)]">
+            <p className="text-xs uppercase tracking-[0.18em]">Direct line</p>
+            <p className="mt-2 font-semibold text-[var(--color-ink)]">{businessNumber}</p>
+          </div>
+        </div>
+      </GlassPanel>
+
+      <GlassPanel className="p-6">
+        <p className="text-xs uppercase tracking-[0.22em] text-[var(--color-muted)]">
+          Quick actions
+        </p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          {QUICK_ACTIONS.map((action) => {
+            const resolvedTemplate =
+              action.id === 'support' && supportMessage
+                ? supportMessage
+                : action.id === 'order' && orderMessage
+                  ? orderMessage
+                  : action.template;
+            const isActive = action.id === selectedIntent;
+
+            return (
+              <button
+                key={action.id}
+                type="button"
+                onClick={() => {
+                  setSelectedIntent(action.id);
+                  setCustomMessage('');
+                }}
+                className={`rounded-[1.25rem] border px-4 py-4 text-left transition ${
+                  isActive
+                    ? 'border-emerald-300 bg-emerald-50'
+                    : 'border-[var(--color-border)] bg-white/80 hover:-translate-y-0.5'
+                }`}
+              >
+                <p className="font-semibold text-[var(--color-ink)]">{action.label}</p>
+                <p className="mt-2 text-sm leading-6 text-[var(--color-muted)]">
+                  {resolvedTemplate}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+      </GlassPanel>
+
+      <GlassPanel className="p-6">
+        <div className="grid gap-6 lg:grid-cols-[0.56fr_0.44fr]">
+          <div>
+            <p className="text-xs uppercase tracking-[0.22em] text-[var(--color-muted)]">
+              Message preview
+            </p>
+            <textarea
+              value={customMessage}
+              onChange={(event) => setCustomMessage(event.target.value)}
+              rows={7}
+              placeholder={activeTemplate.template}
+              className="mt-4 w-full rounded-[1.35rem] border border-[var(--color-border)] bg-white/80 px-4 py-4 text-sm leading-6 text-[var(--color-ink)] outline-none transition focus:border-[var(--color-accent)]"
+            />
+            <p className="mt-3 text-sm text-[var(--color-muted)]">
+              Leave this empty to use the prepared WhatsApp template automatically.
+            </p>
+          </div>
+
+          <div className="space-y-4 rounded-[1.5rem] border border-[var(--color-border)] bg-[var(--color-surface)]/75 p-5">
             <div>
-              <h3 className="font-semibold">Saree Pro</h3>
-              <p className="text-xs opacity-90">
-                {isConnected ? 'Online' : 'Connecting...'}
+              <p className="text-xs uppercase tracking-[0.2em] text-[var(--color-muted)]">
+                Selected flow
+              </p>
+              <p className="mt-2 text-lg font-semibold text-[var(--color-ink)]">
+                {activeTemplate.label}
               </p>
             </div>
-          </div>
-          
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={() => window.open(`tel:${businessNumber}`)}
-              className="p-2 rounded-full hover:bg-green-700 transition-colors"
-              title="Call"
-            >
-              <PhoneIcon className="w-5 h-5" />
-            </button>
-            <button
-              className="p-2 rounded-full hover:bg-green-700 transition-colors"
-              title="Video Call"
-            >
-              <VideoCameraIcon className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-      </GlassPanel>
 
-      {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-4 bg-gray-50 dark:bg-gray-900">
-        {messages.map((message) => (
-          <div
-            key={message.id}
-            className={cn(
-              'flex mb-4',
-              message.isFromCustomer ? 'justify-end' : 'justify-start'
-            )}
-          >
-            <div className={cn(
-              'max-w-xs lg:max-w-md px-4 py-2 rounded-2xl',
-              message.isFromCustomer
-                ? 'bg-green-600 text-white'
-                : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700'
-            )}>
-              <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-              
-              <div className={cn(
-                'flex items-center justify-between mt-1 text-xs',
-                message.isFromCustomer ? 'text-green-100' : 'text-gray-500 dark:text-gray-400'
-              )}>
-                <span>{formatTime(message.timestamp)}</span>
-                <span className="flex items-center space-x-1">
-                  {message.status === 'sending' && '⏳'}
-                  {message.status === 'sent' && '✓'}
-                  {message.status === 'delivered' && '✓✓'}
-                  {message.status === 'read' && '✓✓'}
-                </span>
-              </div>
+            <div className="rounded-[1.2rem] border border-[var(--color-border)] bg-white/85 p-4">
+              <p className="text-xs uppercase tracking-[0.18em] text-[var(--color-muted)]">
+                Final message
+              </p>
+              <p className="mt-3 text-sm leading-6 text-[var(--color-ink)]">{composedMessage}</p>
             </div>
-          </div>
-        ))}
 
-        {/* Order Form */}
-        {showOrderForm && (
-          <GlassPanel className="p-4 mb-4">
-            <h4 className="font-semibold mb-3">Place Your Order</h4>
-            
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium mb-1">Items</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {['Burger', 'Pizza', 'Shawarma', 'Falafel', 'Drink'].map(item => (
-                    <button
-                      key={item}
-                      onClick={() => addToOrder(item)}
-                      className={cn(
-                        'p-2 rounded-lg border text-sm transition-colors',
-                        orderData.items.includes(item)
-                          ? 'bg-green-100 border-green-300 text-green-700'
-                          : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
-                      )}
-                    >
-                      {item}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Address</label>
-                <input
-                  type="text"
-                  value={orderData.address}
-                  onChange={(e) => setOrderData(prev => ({ ...prev, address: e.target.value }))}
-                  placeholder="Enter your delivery address"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Notes (Optional)</label>
-                <textarea
-                  value={orderData.notes}
-                  onChange={(e) => setOrderData(prev => ({ ...prev, notes: e.target.value }))}
-                  placeholder="Special instructions..."
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white resize-none"
-                  rows={2}
-                />
-              </div>
-
-              <div className="flex items-center justify-between pt-2 border-t border-gray-200 dark:border-gray-700">
-                <span className="font-semibold">
-                  Total: {calculateOrderTotal()} SAR
-                </span>
-                <div className="space-x-2">
-                  <PremiumButton
-                    size="sm"
-                    onClick={() => setShowOrderForm(false)}
-                    variant="outline"
-                  >
-                    Cancel
-                  </PremiumButton>
-                  <PremiumButton
-                    size="sm"
-                    onClick={handleOrderSubmit}
-                    disabled={orderData.items.length === 0 || !orderData.address}
-                  >
-                    Place Order
-                  </PremiumButton>
-                </div>
-              </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <PremiumButton
+                type="button"
+                onClick={openWhatsApp}
+                icon={<ArrowTopRightOnSquareIcon className="h-4 w-4" />}
+              >
+                Open WhatsApp
+              </PremiumButton>
+              <PremiumButton
+                type="button"
+                variant="outline"
+                onClick={() => void copyMessage()}
+                icon={<ClipboardDocumentCheckIcon className="h-4 w-4" />}
+              >
+                Copy text
+              </PremiumButton>
             </div>
-          </GlassPanel>
-        )}
-      </div>
 
-      {/* Input Area */}
-      <GlassPanel className="p-4">
-        <div className="flex items-center space-x-2">
-          <button
-            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            title="Attach File"
-          >
-            <PaperClipIcon className="w-5 h-5 text-gray-500" />
-          </button>
-          
-          <button
-            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            title="Emoji"
-          >
-            <FaceSmileIcon className="w-5 h-5 text-gray-500" />
-          </button>
-
-          <input
-            type="text"
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            onKeyPress={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                sendMessage();
-              }
-            }}
-            placeholder="Type a message..."
-            className="flex-1 px-4 py-3 bg-transparent outline-none text-gray-900 dark:text-white placeholder-gray-400"
-          />
-
-          <button
-            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            title="Voice Message"
-          >
-            <MicrophoneIcon className="w-5 h-5 text-gray-500" />
-          </button>
-
-          <PremiumButton
-            size="sm"
-            onClick={sendMessage}
-            disabled={!newMessage.trim()}
-            icon={<ChatBubbleLeftRightIcon className="w-4 h-4" />}
-            iconPosition="right"
-          >
-            Send
-          </PremiumButton>
-        </div>
-      </GlassPanel>
-
-      {/* Quick Actions */}
-      <GlassPanel className="p-3 m-4">
-        <div className="grid grid-cols-4 gap-2">
-          <button
-            onClick={() => setNewMessage('I want to place an order')}
-            className="p-2 text-xs bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
-          >
-            📦 Order
-          </button>
-          <button
-            onClick={() => setNewMessage('Show me the menu')}
-            className="p-2 text-xs bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
-          >
-            📋 Menu
-          </button>
-          <button
-            onClick={() => setNewMessage('What are your delivery areas?')}
-            className="p-2 text-xs bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors"
-          >
-            📍 Delivery
-          </button>
-          <button
-            onClick={openWhatsApp}
-            className="p-2 text-xs bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 transition-colors"
-          >
-            📱 WhatsApp
-          </button>
+            <a
+              href={`tel:${businessNumber}`}
+              className="inline-flex items-center gap-2 text-sm font-medium text-[var(--color-accent-strong)] transition hover:opacity-80"
+            >
+              <PhoneIcon className="h-4 w-4" />
+              Call support instead
+            </a>
+          </div>
         </div>
       </GlassPanel>
     </div>
   );
 }
+
+export default WhatsAppIntegration;

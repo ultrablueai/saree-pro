@@ -1,146 +1,106 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
-  EyeIcon,
   KeyIcon,
-  PlusIcon,
   ShieldCheckIcon,
   UserGroupIcon,
 } from '@heroicons/react/24/outline';
-import { useLocalization } from '../../hooks/useLocalization';
-import { type Permission, rbacService, type Role, type UserPermission } from '../../lib/rbac';
+import {
+  getAvailablePermissions,
+  getPermissionCategoryName,
+  getRole,
+  type Permission,
+  type UserPermission,
+} from '../../lib/rbac';
 import { cn } from '../../lib/utils';
 import { GlassPanel } from '../PremiumUI/GlassPanel';
-import { PremiumButton } from '../PremiumUI/PremiumButton';
 
 interface RoleManagerProps {
-  userId?: string;
-  onRoleChange?: (role: Role) => void;
+  userId: string;
+  userLabel?: string;
   className?: string;
 }
 
-const ACTION_LABELS: Record<string, string> = {
-  create: '+',
-  read: 'view',
-  update: 'edit',
-  delete: 'remove',
-  assign: 'assign',
-  refund: 'refund',
-  escrow: 'hold',
-  verify: 'check',
-  approve: 'ok',
-  export: 'csv',
-  resolve: 'fix',
-};
+function getRoleColor(roleId: string) {
+  const colorMap: Record<string, string> = {
+    admin: 'bg-red-100 text-red-700 border-red-200',
+    moderator: 'bg-orange-100 text-orange-700 border-orange-200',
+    staff: 'bg-blue-100 text-blue-700 border-blue-200',
+    support: 'bg-green-100 text-green-700 border-green-200',
+    merchant: 'bg-purple-100 text-purple-700 border-purple-200',
+    driver: 'bg-yellow-100 text-yellow-700 border-yellow-200',
+    customer: 'bg-gray-100 text-gray-700 border-gray-200',
+  };
 
-export function RoleManager({ userId, onRoleChange, className = '' }: RoleManagerProps) {
-  useLocalization();
+  return colorMap[roleId] ?? 'bg-gray-100 text-gray-700 border-gray-200';
+}
 
-  const [roles, setRoles] = useState<Role[]>([]);
-  const [permissions, setPermissions] = useState<Permission[]>([]);
-  const [userPermissions, setUserPermissions] = useState<UserPermission | null>(null);
-  const [selectedRole, setSelectedRole] = useState<Role['id'] | ''>('');
-  const [customPermissions, setCustomPermissions] = useState<string[]>([]);
+export function RoleManager({ userId, userLabel, className = '' }: RoleManagerProps) {
+  const [snapshot, setSnapshot] = useState<UserPermission | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [showPermissionDetails, setShowPermissionDetails] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function loadData() {
+    let isCancelled = false;
+
+    async function loadPermissions() {
+      setIsLoading(true);
+      setError(null);
+
       try {
-        setIsLoading(true);
+        const response = await fetch(`/api/rbac/permissions/${encodeURIComponent(userId)}`, {
+          method: 'GET',
+          headers: { Accept: 'application/json' },
+          cache: 'no-store',
+        });
 
-        setRoles(rbacService.getAllRoles());
-        setPermissions(rbacService.getAvailablePermissions());
-
-        if (!userId) {
-          setUserPermissions(null);
-          setSelectedRole('');
-          setCustomPermissions([]);
-          return;
+        if (!response.ok) {
+          throw new Error('Unable to load access profile');
         }
 
-        await rbacService.loadUserPermissions(userId);
-
-        const fallbackPermissions: UserPermission = {
-          userId,
-          roleId: 'customer',
-          permissions: ['orders.create', 'orders.read'],
-          customPermissions: [],
+        const payload = (await response.json()) as {
+          data?: UserPermission;
+          permissions?: UserPermission;
         };
 
-        setUserPermissions(fallbackPermissions);
-        setSelectedRole(fallbackPermissions.roleId);
-        setCustomPermissions(fallbackPermissions.customPermissions ?? []);
-      } catch (error) {
-        console.error('Failed to load role data:', error);
+        if (!isCancelled) {
+          setSnapshot(payload.data ?? payload.permissions ?? null);
+        }
+      } catch (loadError) {
+        if (!isCancelled) {
+          setError(loadError instanceof Error ? loadError.message : 'Unable to load access profile');
+        }
       } finally {
-        setIsLoading(false);
+        if (!isCancelled) {
+          setIsLoading(false);
+        }
       }
     }
 
-    void loadData();
+    void loadPermissions();
+
+    return () => {
+      isCancelled = true;
+    };
   }, [userId]);
 
-  async function handleRoleChange(roleId: Role['id']) {
-    if (!userId) {
-      return;
-    }
+  const permissionsByCategory = useMemo(() => {
+    const grantedPermissions = new Set([
+      ...(snapshot?.permissions ?? []),
+      ...(snapshot?.customPermissions ?? []),
+    ]);
 
-    try {
-      await rbacService.assignRole(userId, roleId);
-      setSelectedRole(roleId);
-
-      const nextRole = rbacService.getRole(roleId);
-      if (nextRole) {
-        onRoleChange?.(nextRole);
-      }
-    } catch (error) {
-      console.error('Failed to change role:', error);
-    }
-  }
-
-  async function handlePermissionToggle(permissionId: string) {
-    if (!userId) {
-      return;
-    }
-
-    try {
-      if (customPermissions.includes(permissionId)) {
-        await rbacService.removeCustomPermission(userId, permissionId);
-        setCustomPermissions((previous) => previous.filter((item) => item !== permissionId));
-        return;
+    return getAvailablePermissions().reduce<Record<string, Permission[]>>((groups, permission) => {
+      if (!grantedPermissions.has(permission.id)) {
+        return groups;
       }
 
-      await rbacService.addCustomPermission(userId, permissionId);
-      setCustomPermissions((previous) => [...previous, permissionId]);
-    } catch (error) {
-      console.error('Failed to toggle permission:', error);
-    }
-  }
-
-  function getRoleColor(roleId: string) {
-    const colorMap: Record<string, string> = {
-      admin: 'bg-red-100 text-red-700 border-red-200',
-      moderator: 'bg-orange-100 text-orange-700 border-orange-200',
-      staff: 'bg-blue-100 text-blue-700 border-blue-200',
-      support: 'bg-green-100 text-green-700 border-green-200',
-      merchant: 'bg-purple-100 text-purple-700 border-purple-200',
-      driver: 'bg-yellow-100 text-yellow-700 border-yellow-200',
-      customer: 'bg-gray-100 text-gray-700 border-gray-200',
-    };
-
-    return colorMap[roleId] ?? 'bg-gray-100 text-gray-700 border-gray-200';
-  }
-
-  const groupedPermissions = permissions.reduce<Record<string, Permission[]>>((groups, permission) => {
-    const category = permission.category;
-    groups[category] ??= [];
-    groups[category].push(permission);
-    return groups;
-  }, {});
-
-  const currentRole = userPermissions ? rbacService.getRole(userPermissions.roleId) : null;
+      groups[permission.category] ??= [];
+      groups[permission.category].push(permission);
+      return groups;
+    }, {});
+  }, [snapshot]);
 
   if (isLoading) {
     return (
@@ -150,194 +110,140 @@ export function RoleManager({ userId, onRoleChange, className = '' }: RoleManage
     );
   }
 
+  if (error || !snapshot) {
+    return (
+      <GlassPanel className={cn('p-6', className)}>
+        <p className="text-sm text-rose-700 dark:text-rose-200">
+          {error ?? 'No access profile available for this user.'}
+        </p>
+      </GlassPanel>
+    );
+  }
+
+  const role = getRole(snapshot.roleId);
+
   return (
     <div className={cn('space-y-6', className)}>
       <GlassPanel className="p-6">
-        <h3 className="mb-4 flex items-center text-lg font-semibold">
-          <ShieldCheckIcon className="mr-2 h-5 w-5" />
-          Role Management
-        </h3>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h3 className="flex items-center text-lg font-semibold text-[var(--color-ink)]">
+              <ShieldCheckIcon className="mr-2 h-5 w-5" />
+              Access profile
+            </h3>
+            <p className="mt-2 text-sm text-[var(--color-muted)]">
+              {userLabel ?? snapshot.userId}
+            </p>
+          </div>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {roles.map((role) => (
-            <button
-              key={role.id}
-              type="button"
-              onClick={() => void handleRoleChange(role.id)}
-              className={cn(
-                'rounded-lg border-2 p-4 text-left transition-all',
-                selectedRole === role.id
-                  ? 'border-blue-500 bg-blue-50'
-                  : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50',
-                getRoleColor(role.id),
-              )}
-            >
-              <div className="mb-2 flex items-center justify-between">
-                <h4 className="font-semibold">{role.name}</h4>
-                {selectedRole === role.id ? <div className="h-3 w-3 rounded-full bg-blue-600" /> : null}
-              </div>
+          <div
+            className={cn(
+              'rounded-full border px-3 py-1 text-sm font-medium',
+              getRoleColor(snapshot.roleId),
+            )}
+          >
+            {snapshot.roleId.toUpperCase()}
+          </div>
+        </div>
 
-              <p className="mb-3 text-sm opacity-75">{role.description}</p>
+        <div className="mt-5 grid gap-4 md:grid-cols-3">
+          <div className="rounded-2xl border border-[var(--color-border)] bg-white/80 p-4">
+            <p className="text-xs uppercase tracking-[0.2em] text-[var(--color-muted)]">Role</p>
+            <p className="mt-2 text-lg font-semibold text-[var(--color-ink)]">
+              {role?.name ?? snapshot.roleId}
+            </p>
+          </div>
 
-              <div className="flex items-center justify-between text-xs">
-                <span>{role.permissions.length} permissions</span>
-                <span className="rounded-full bg-gray-200 px-2 py-1">Level {role.hierarchy}</span>
-              </div>
-            </button>
-          ))}
+          <div className="rounded-2xl border border-[var(--color-border)] bg-white/80 p-4">
+            <p className="text-xs uppercase tracking-[0.2em] text-[var(--color-muted)]">
+              Hierarchy
+            </p>
+            <p className="mt-2 text-lg font-semibold text-[var(--color-ink)]">
+              Level {role?.hierarchy ?? 0}
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-[var(--color-border)] bg-white/80 p-4">
+            <p className="text-xs uppercase tracking-[0.2em] text-[var(--color-muted)]">
+              Permissions
+            </p>
+            <p className="mt-2 text-lg font-semibold text-[var(--color-ink)]">
+              {(snapshot.permissions.length + (snapshot.customPermissions?.length ?? 0)).toString()}
+            </p>
+          </div>
+        </div>
+
+        {role ? (
+          <p className="mt-4 text-sm leading-6 text-[var(--color-muted)]">{role.description}</p>
+        ) : null}
+      </GlassPanel>
+
+      <GlassPanel className="p-6">
+        <h4 className="flex items-center text-lg font-semibold text-[var(--color-ink)]">
+          <UserGroupIcon className="mr-2 h-5 w-5" />
+          Restrictions
+        </h4>
+
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <div className="rounded-2xl border border-[var(--color-border)] bg-white/80 p-4">
+            <p className="text-xs uppercase tracking-[0.2em] text-[var(--color-muted)]">
+              Order scope
+            </p>
+            <p className="mt-2 text-sm font-medium text-[var(--color-ink)]">
+              {snapshot.restrictions?.canAccessAllOrders ? 'Platform-wide' : 'Role scoped'}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-[var(--color-border)] bg-white/80 p-4">
+            <p className="text-xs uppercase tracking-[0.2em] text-[var(--color-muted)]">
+              Merchant scope
+            </p>
+            <p className="mt-2 text-sm font-medium text-[var(--color-ink)]">
+              {snapshot.restrictions?.canAccessAllMerchants ? 'Platform-wide' : 'Role scoped'}
+            </p>
+          </div>
         </div>
       </GlassPanel>
 
-      {userPermissions ? (
-        <>
-          <GlassPanel className="p-6">
-            <h3 className="mb-4 flex items-center text-lg font-semibold">
-              <UserGroupIcon className="mr-2 h-5 w-5" />
-              Current Permissions
-            </h3>
-
-            <div className="mb-4 rounded-lg bg-blue-50 p-4 dark:bg-blue-900/20">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">Current Role</p>
-                  <p className="text-sm text-gray-600 dark:text-gray-300">
-                    {currentRole?.name ?? userPermissions.roleId}
-                  </p>
-                </div>
-                <div
-                  className={cn(
-                    'rounded-full px-3 py-1 text-sm font-medium',
-                    getRoleColor(userPermissions.roleId),
-                  )}
-                >
-                  {userPermissions.roleId.toUpperCase()}
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span>Total Permissions:</span>
-                <span className="font-medium">
-                  {userPermissions.permissions.length + customPermissions.length}
-                </span>
-              </div>
-
-              {userPermissions.restrictions ? (
-                <div className="text-sm text-orange-600">Access restrictions applied</div>
-              ) : null}
-            </div>
-          </GlassPanel>
-
-          <GlassPanel className="space-y-4 p-6">
-            <div className="flex items-center justify-between">
-              <h4 className="flex items-center font-medium">
-                <KeyIcon className="mr-2 h-4 w-4" />
-                Custom Permissions
-              </h4>
-              <PremiumButton
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => setShowPermissionDetails((previous) => !previous)}
-              >
-                {showPermissionDetails ? 'Hide' : 'Show'} Details
-              </PremiumButton>
-            </div>
-
-            {showPermissionDetails ? (
-              <div className="space-y-6">
-                {Object.entries(groupedPermissions).map(([category, categoryPermissions]) => (
-                  <div key={category}>
-                    <h5 className="mb-3 font-medium capitalize text-gray-700 dark:text-gray-300">
-                      {category}
-                    </h5>
-
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                      {categoryPermissions.map((permission) => {
-                        const hasPermission =
-                          userPermissions.permissions.includes(permission.id) ||
-                          customPermissions.includes(permission.id);
-
-                        return (
-                          <button
-                            key={permission.id}
-                            type="button"
-                            onClick={() => void handlePermissionToggle(permission.id)}
-                            className={cn(
-                              'rounded-lg border p-3 text-left transition-all',
-                              hasPermission
-                                ? 'border-green-500 bg-green-50 text-green-700'
-                                : 'border-gray-200 hover:border-gray-300',
-                            )}
-                          >
-                            <div className="flex items-start space-x-3">
-                              <span className="text-xs font-semibold uppercase">
-                                {ACTION_LABELS[permission.action] ?? 'perm'}
-                              </span>
-
-                              <div className="min-w-0 flex-1">
-                                <p className="text-sm font-medium">{permission.name}</p>
-                                <p className="mt-1 text-xs opacity-75">{permission.description}</p>
-                              </div>
-
-                              <div className="flex items-center space-x-1">
-                                {hasPermission ? (
-                                  <EyeIcon className="h-4 w-4 text-green-600" />
-                                ) : (
-                                  <PlusIcon className="h-4 w-4 text-gray-400" />
-                                )}
-                              </div>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : null}
-          </GlassPanel>
-        </>
-      ) : null}
-
       <GlassPanel className="p-6">
-        <h3 className="mb-4 text-lg font-semibold">Role Hierarchy</h3>
+        <h4 className="flex items-center text-lg font-semibold text-[var(--color-ink)]">
+          <KeyIcon className="mr-2 h-5 w-5" />
+          Granted permissions
+        </h4>
 
-        <div className="space-y-2">
-          {[...roles]
-            .sort((a, b) => b.hierarchy - a.hierarchy)
-            .map((role) => (
-              <div
-                key={role.id}
-                className={cn(
-                  'flex items-center justify-between rounded-lg border p-3',
-                  getRoleColor(role.id),
-                )}
-              >
-                <div className="flex items-center space-x-3">
-                  <div
-                    className={cn(
-                      'flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold',
-                      getRoleColor(role.id),
-                    )}
-                  >
-                    {role.name.charAt(0).toUpperCase()}
-                  </div>
-                  <div>
-                    <p className="font-medium">{role.name}</p>
-                    <p className="text-sm opacity-75">{role.description}</p>
-                  </div>
-                </div>
-
-                <div className="text-right">
-                  <div className="text-sm font-medium">Level {role.hierarchy}</div>
-                  <div className="text-xs opacity-75">{role.permissions.length} permissions</div>
+        <div className="mt-5 space-y-6">
+          {Object.entries(permissionsByCategory).length ? (
+            Object.entries(permissionsByCategory).map(([category, categoryPermissions]) => (
+              <div key={category}>
+                <p className="text-xs uppercase tracking-[0.22em] text-[var(--color-muted)]">
+                  {getPermissionCategoryName(category as Permission['category'])}
+                </p>
+                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                  {categoryPermissions.map((permission) => (
+                    <div
+                      key={permission.id}
+                      className="rounded-2xl border border-[var(--color-border)] bg-white/80 p-4"
+                    >
+                      <p className="text-sm font-semibold text-[var(--color-ink)]">
+                        {permission.name}
+                      </p>
+                      <p className="mt-1 text-sm text-[var(--color-muted)]">
+                        {permission.description}
+                      </p>
+                      <p className="mt-3 text-xs uppercase tracking-[0.18em] text-[var(--color-muted)]">
+                        {permission.id}
+                      </p>
+                    </div>
+                  ))}
                 </div>
               </div>
-            ))}
+            ))
+          ) : (
+            <p className="text-sm text-[var(--color-muted)]">No granted permissions found.</p>
+          )}
         </div>
       </GlassPanel>
     </div>
   );
 }
+
+export default RoleManager;

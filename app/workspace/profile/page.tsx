@@ -50,6 +50,9 @@ export default async function ProfilePage() {
               <Link href="/workspace/orders">
                 <Button variant="ghost">Orders hub</Button>
               </Link>
+              <Link href="/workspace/support">
+                <Button variant="ghost">WhatsApp support</Button>
+              </Link>
             </div>
           </div>
         </header>

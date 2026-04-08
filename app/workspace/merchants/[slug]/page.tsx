@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Button } from "@/components/Button";
+import SurgePricingIndicator from "@/components/SurgePricing/SurgePricingIndicator";
 import { getDbExecutor } from "@/lib/db";
 import { getMerchantBySlug } from "@/lib/merchant-search";
 import { MerchantMenu } from "./merchant-menu";
@@ -171,6 +172,14 @@ export default async function MerchantDetailPage({
                 </p>
               )}
             </div>
+          </div>
+
+          <div className="mt-6">
+            <SurgePricingIndicator
+              locationId={merchant.slug}
+              merchantId={merchant.id}
+              baseFee={merchant.deliveryFeeAmount / 100}
+            />
           </div>
         </section>
 
