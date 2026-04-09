@@ -2,10 +2,16 @@
 
 import { cookies } from 'next/headers';
 import { authenticateUser, createUserWithEmailAndPassword } from '@/lib/auth-server';
-import { getUserByRole, getUserByEmail, setSessionUser, toSessionUser } from '@/lib/auth';
+import {
+  getOwnerAccessCode,
+  getUserByEmail,
+  getUserByRole,
+  setSessionUser,
+  toSessionUser,
+} from '@/lib/auth';
 import type { UserRole } from '@/types';
 
-interface FormData {
+interface AuthFormData {
   email: string;
   password: string;
   fullName: string;
@@ -17,27 +23,30 @@ interface ActionResult {
   error?: string;
 }
 
-export async function signInAction(formData: FormData, mode: 'signin' | 'signup'): Promise<ActionResult> {
+export async function signInAction(
+  formData: AuthFormData,
+  mode: 'signin' | 'signup',
+): Promise<ActionResult> {
   try {
     if (mode === 'signup') {
-      // التحقق من البيانات
       if (!formData.email || !formData.password || !formData.fullName) {
-        return { success: false, error: 'جميع الحقول مطلوبة' };
+        return { success: false, error: 'All fields are required.' };
       }
 
       if (formData.password.length < 6) {
-        return { success: false, error: 'كلمة المرور يجب أن تكون 6 أحرف على الأقل' };
+        return {
+          success: false,
+          error: 'Password must be at least 6 characters long.',
+        };
       }
 
-      // إنشاء مستخدم جديد
       const newUser = await createUserWithEmailAndPassword(
         formData.email,
         formData.password,
         formData.fullName,
-        formData.role
+        formData.role,
       );
 
-      // تسجيل الدخول مباشرة
       const sessionUser = toSessionUser({
         id: newUser.id,
         email: newUser.email,
@@ -47,68 +56,89 @@ export async function signInAction(formData: FormData, mode: 'signin' | 'signup'
 
       await setSessionUser(sessionUser);
       return { success: true };
-    } else {
-      // تسجيل الدخول
-      if (!formData.email || !formData.password) {
-        return { success: false, error: 'البريد الإلكتروني وكلمة المرور مطلوبان' };
-      }
-
-      const user = await authenticateUser(formData.email, formData.password);
-
-      const sessionUser = toSessionUser({
-        id: user.id,
-        email: user.email,
-        role: user.role as UserRole,
-        full_name: user.fullName,
-      });
-
-      await setSessionUser(sessionUser);
-      return { success: true };
     }
-  } catch (error: any) {
-    return { success: false, error: error.message || 'حدث خطأ غير متوقع' };
+
+    if (!formData.email || !formData.password) {
+      return {
+        success: false,
+        error: 'Email address and password are required.',
+      };
+    }
+
+    const user = await authenticateUser(formData.email, formData.password);
+    const sessionUser = toSessionUser({
+      id: user.id,
+      email: user.email,
+      role: user.role as UserRole,
+      full_name: user.fullName,
+    });
+
+    await setSessionUser(sessionUser);
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unexpected sign-in error.',
+    };
   }
 }
 
 export async function signInAsRole(role: UserRole): Promise<ActionResult> {
   try {
     const user = await getUserByRole(role);
-    
+
     if (!user) {
-      return { success: false, error: `لم يتم العثور على حساب تجريبي لـ ${role}` };
+      return {
+        success: false,
+        error: `No seeded demo account was found for ${role}.`,
+      };
     }
 
     const sessionUser = toSessionUser(user);
     await setSessionUser(sessionUser);
     return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message || 'فشل تسجيل الدخول' };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unable to sign in.',
+    };
   }
 }
 
-export async function signInAsOwner(email: string, accessCode: string): Promise<ActionResult> {
+export async function signInAsOwner(
+  accessCode: string,
+): Promise<ActionResult> {
   try {
-    const correctCode = process.env.OWNER_ACCESS_CODE ?? '7721';
-    
+    const correctCode = getOwnerAccessCode();
+
+    if (!correctCode) {
+      return {
+        success: false,
+        error: 'Owner access is not configured for this environment.',
+      };
+    }
+
     if (accessCode !== correctCode) {
-      return { success: false, error: 'رمز الدخول غير صحيح' };
+      return { success: false, error: 'The owner access code is incorrect.' };
     }
 
-    const user = await getUserByEmail(email);
-    
+    const user = (await getUserByRole('admin')) ?? (await getUserByRole('owner'));
+
     if (!user) {
-      return { success: false, error: 'البريد الإلكتروني غير مسجل' };
-    }
-
-    if (user.role !== 'admin' && user.role !== 'owner') {
-      return { success: false, error: 'ليس لديك صلاحية المالك' };
+      return {
+        success: false,
+        error: 'No owner or admin account is available yet.',
+      };
     }
 
     const sessionUser = toSessionUser(user, true);
     await setSessionUser(sessionUser);
     return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message || 'فشل تسجيل الدخول' };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unable to open owner access.',
+    };
   }
 }
 

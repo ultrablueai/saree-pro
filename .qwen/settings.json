@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(timeout *)",
+      "Bash(start *)",
+      "Bash(tasklist)",
+      "Bash(findstr *)",
+      "Bash(npx *)",
+      "Bash(taskkill *)",
+      "Bash(rmdir *)",
+      "Bash(git add *)"
+    ]
+  },
+  "$version": 3
+}

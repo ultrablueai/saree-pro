@@ -1,238 +1,130 @@
-import Link from "next/link";
-import { CustomerWorkspacePanel } from "@/app/workspace/CustomerWorkspacePanel";
-import { DriverWorkspacePanel } from "@/app/workspace/DriverWorkspacePanel";
-import { signOutWorkspace } from "@/app/workspace/actions";
-import { MerchantWorkspacePanel } from "@/app/workspace/MerchantWorkspacePanel";
-import { OwnerWorkspacePanel } from "@/app/workspace/OwnerWorkspacePanel";
-import { Button } from "@/components/Button";
-import { LanguageSwitcher } from "@/components/LanguageSwitcher";
-import { MobileBottomNav } from "@/components/MobileBottomNav";
-import NotificationBell from "@/components/NotificationBell";
-import { StatusPill } from "@/components/StatusPill";
-import { requireSessionUser } from "@/lib/auth";
-import { getRequestI18n } from "@/lib/i18n-server";
-import { getNotificationsByUserId, getUnreadCount } from "@/lib/notifications";
-import { getWorkspaceSummary } from "@/lib/workspace-data";
+import { requireSessionUser } from '@/lib/auth';
+import { redirect } from 'next/navigation';
+import Link from 'next/link';
+import { Button } from '@/components/Button';
 
-function formatDate(value: string, locale: string) {
-  return new Intl.DateTimeFormat(locale, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
-}
-
-function formatCurrency(amount: number, currency: string, locale: string) {
-  return new Intl.NumberFormat(locale, {
-    style: "currency",
-    currency,
-  }).format(amount / 100);
-}
-
-function getRoleTheme(type: "customer" | "merchant" | "driver" | "owner" | "admin") {
-  if (type === "driver") {
-    return {
-      shell: "night-panel text-white",
-      hero:
-        "bg-[radial-gradient(circle_at_top_left,rgba(53,168,151,0.28),transparent_32%),linear-gradient(135deg,#12161d_0%,#16202b_50%,#0f141b_100%)] text-white",
-      subtext: "text-white/72",
-      chip: "border-white/10 bg-white/10 text-white/82",
-    };
-  }
-
-  if (type === "owner" || type === "admin") {
-    return {
-      shell: "glass-panel",
-      hero:
-        "bg-[radial-gradient(circle_at_top_left,rgba(16,106,100,0.16),transparent_32%),linear-gradient(135deg,#fff8f2_0%,#f7efe6_52%,#f3e6da_100%)]",
-      subtext: "text-[var(--color-muted)]",
-      chip: "border-[var(--color-border)] bg-white/80 text-[var(--color-ink)]",
-    };
-  }
-
-  return {
-    shell: "glass-panel",
-    hero:
-      "bg-[radial-gradient(circle_at_top_left,rgba(214,107,66,0.14),transparent_34%),radial-gradient(circle_at_top_right,rgba(16,106,100,0.1),transparent_30%),linear-gradient(135deg,#fffaf4_0%,#f7efe5_52%,#f1e5d7_100%)]",
-    subtext: "text-[var(--color-muted)]",
-    chip: "border-[var(--color-border)] bg-white/80 text-[var(--color-ink)]",
-  };
-}
-
-function getWorkspaceHighlights(
-  workspace: Awaited<ReturnType<typeof getWorkspaceSummary>>,
-  locale: string,
-) {
-  if (workspace.type === "customer") {
-    return [
-      { label: "Recent orders", value: workspace.data.orders.length.toString() },
-      {
-        label: "Wallet balance",
-        value: workspace.data.wallet
-          ? formatCurrency(Math.round(workspace.data.wallet.balance * 100), workspace.data.wallet.currency, locale)
-          : "Not ready",
-      },
-      {
-        label: "Loyalty points",
-        value: workspace.data.loyaltyPoints
-          ? workspace.data.loyaltyPoints.points.toString()
-          : workspace.data.unreadNotifications.toString(),
-      },
-    ];
-  }
-
-  if (workspace.type === "merchant" && workspace.data) {
-    return [
-      { label: "Store status", value: workspace.data.merchant.status },
-      { label: "Kitchen queue", value: workspace.data.activeOrders.toString() },
-      {
-        label: "Minimum order",
-        value: formatCurrency(
-          workspace.data.merchant.minimum_order_amount,
-          workspace.data.merchant.currency,
-          locale,
-        ),
-      },
-    ];
-  }
-
-  if (workspace.type === "driver" && workspace.data) {
-    return [
-      { label: "Availability", value: workspace.data.driver.availability },
-      { label: "Assigned", value: workspace.data.assignedOrders.length.toString() },
-      { label: "Ready nearby", value: workspace.data.availableOrders.length.toString() },
-    ];
-  }
-
-  if ((workspace.type === "owner" || workspace.type === "admin") && workspace.data) {
-    return [
-      { label: "Pending orders", value: workspace.data.metrics.pendingOrders.toString() },
-      { label: "Active drivers", value: workspace.data.metrics.activeDrivers.toString() },
-      { label: "Critical alerts", value: workspace.data.metrics.criticalAlerts.toString() },
-    ];
-  }
-
-  return [];
-}
+const workspaceConfig = {
+  customer: {
+    title: 'Customer Workspace',
+    description: 'Browse merchants, place orders, and track deliveries',
+    color: 'blue',
+    links: [
+      { label: 'Browse Merchants', href: '/workspace/merchants' },
+      { label: 'My Orders', href: '/workspace/orders' },
+      { label: 'My Addresses', href: '/workspace/addresses' },
+      { label: 'Profile', href: '/workspace/profile' },
+    ],
+  },
+  merchant: {
+    title: 'Merchant Dashboard',
+    description: 'Manage your store, menu items, and orders',
+    color: 'green',
+    links: [
+      { label: 'Dashboard', href: '/workspace/merchants' },
+      { label: 'Manage Menu', href: '/workspace/merchants/menu' },
+      { label: 'Incoming Orders', href: '/workspace/merchants/orders' },
+      { label: 'Store Settings', href: '/workspace/merchants/settings' },
+      { label: 'Profile', href: '/workspace/profile' },
+    ],
+  },
+  driver: {
+    title: 'Driver Dashboard',
+    description: 'Accept deliveries, navigate routes, and track earnings',
+    color: 'orange',
+    links: [
+      { label: 'Available Deliveries', href: '/workspace/drivers' },
+      { label: 'My Deliveries', href: '/workspace/drivers/deliveries' },
+      { label: 'Earnings', href: '/workspace/drivers/earnings' },
+      { label: 'Profile', href: '/workspace/profile' },
+    ],
+  },
+  admin: {
+    title: 'Admin Console',
+    description: 'Manage users, merchants, and platform operations',
+    color: 'purple',
+    links: [
+      { label: 'Dashboard', href: '/workspace/admin' },
+      { label: 'Users', href: '/workspace/admin/users' },
+      { label: 'Merchants', href: '/workspace/admin/merchants' },
+      { label: 'Orders', href: '/workspace/admin/orders' },
+      { label: 'Profile', href: '/workspace/profile' },
+    ],
+  },
+  owner: {
+    title: 'Owner Console',
+    description: 'Full platform control, analytics, and financial management',
+    color: 'red',
+    links: [
+      { label: 'Dashboard', href: '/owner-access' },
+      { label: 'Financial Analytics', href: '/owner-access/finance' },
+      { label: 'Platform Settings', href: '/owner-access/settings' },
+      { label: 'Profile', href: '/workspace/profile' },
+    ],
+  },
+};
 
 export default async function WorkspacePage() {
   const session = await requireSessionUser();
-  const { locale, dictionary } = await getRequestI18n();
-  const [workspace, headerNotifications, headerUnreadCount] = await Promise.all([
-    getWorkspaceSummary(session),
-    getNotificationsByUserId(session.id, 6),
-    getUnreadCount(session.id),
-  ]);
-  const workspaceLabel =
-    session.ownerAccess
-      ? dictionary.workspaces.ownerAccess
-      : dictionary.workspaces[workspace.type];
-  const theme = getRoleTheme(workspace.type);
-  const highlights = getWorkspaceHighlights(workspace, locale);
+
+  const config = workspaceConfig[session.role as keyof typeof workspaceConfig];
+
+  if (!config) {
+    redirect('/login');
+  }
+
+  const colorClasses = {
+    blue: 'bg-blue-50 text-blue-700 border-blue-200',
+    green: 'bg-green-50 text-green-700 border-green-200',
+    orange: 'bg-orange-50 text-orange-700 border-orange-200',
+    purple: 'bg-purple-50 text-purple-700 border-purple-200',
+    red: 'bg-red-50 text-red-700 border-red-200',
+  };
 
   return (
-    <main className="app-shell mx-auto min-h-screen w-full max-w-7xl px-4 pb-28 pt-5 sm:px-8 sm:pt-8">
-      <div className={`overflow-hidden rounded-[2rem] p-4 md:p-6 ${theme.shell}`}>
-        <header className={`rounded-[1.8rem] border border-transparent px-5 py-6 md:px-7 md:py-7 ${theme.hero}`}>
-          <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
-            <div className="space-y-4">
-              <StatusPill
-                label={workspaceLabel}
-                tone={session.ownerAccess ? "warning" : "success"}
-              />
-              <div>
-                <p className="text-sm uppercase tracking-[0.28em] text-[var(--color-muted)]">
-                  Saree Pro
-                </p>
-                <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
-                  {dictionary.common.welcome}, {session.name}
-                </h1>
-              </div>
-              <p className={`max-w-3xl text-base leading-7 ${theme.subtext}`}>
-                {dictionary.workspaces.workspaceIntro}
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3 md:max-w-sm md:justify-end">
-              <Link href="/workspace/orders">
-                <Button variant="ghost" className="bg-white/75">
-                  Orders hub
-                </Button>
-              </Link>
-              <Link href="/workspace/support">
-                <Button variant="ghost" className="bg-white/75">
-                  Support
-                </Button>
-              </Link>
-              {workspace.type === "customer" ? (
-                <Link href="/workspace/wallet">
-                  <Button variant="ghost" className="bg-white/75">
-                    Wallet
-                  </Button>
-                </Link>
-              ) : null}
-              <NotificationBell
-                notifications={headerNotifications}
-                unreadCount={headerUnreadCount}
-              />
-              <LanguageSwitcher currentLocale={locale} label={dictionary.common.language} />
-              <form action={signOutWorkspace}>
-                <Button type="submit" variant="secondary">
-                  {dictionary.nav.signOut}
-                </Button>
-              </form>
-            </div>
-          </div>
-
-          <div className="mt-6 grid gap-3 md:grid-cols-3">
-            {highlights.map((highlight) => (
-              <div
-                key={highlight.label}
-                className={`rounded-[1.3rem] border px-4 py-4 ${theme.chip}`}
-              >
-                <p className="text-[11px] font-semibold uppercase tracking-[0.24em] opacity-70">
-                  {highlight.label}
-                </p>
-                <p className="mt-2 text-xl font-semibold">{highlight.value}</p>
-              </div>
-            ))}
-          </div>
-        </header>
-
-        <section className="mt-5">
-          {workspace.type === "customer" ? (
-            <CustomerWorkspacePanel
-              data={workspace.data}
-              formatCurrency={(amount, currency) => formatCurrency(amount, currency, locale)}
-              formatDate={(value) => formatDate(value, locale)}
-            />
-          ) : null}
-
-          {workspace.type === "merchant" && workspace.data ? (
-            <MerchantWorkspacePanel
-              data={workspace.data}
-              formatCurrency={(amount, currency) => formatCurrency(amount, currency, locale)}
-              formatDate={(value) => formatDate(value, locale)}
-            />
-          ) : null}
-
-          {workspace.type === "driver" && workspace.data ? (
-            <DriverWorkspacePanel
-              data={workspace.data}
-              formatCurrency={(amount, currency) => formatCurrency(amount, currency, locale)}
-              formatDate={(value) => formatDate(value, locale)}
-            />
-          ) : null}
-
-          {(workspace.type === "owner" || workspace.type === "admin") && workspace.data ? (
-            <OwnerWorkspacePanel
-              data={workspace.data}
-              formatDate={(value) => formatDate(value, locale)}
-            />
-          ) : null}
-        </section>
+    <main className="mx-auto max-w-7xl px-6 py-8">
+      {/* Header */}
+      <div className="mb-8">
+        <div className="flex items-center gap-3">
+          <span className={`rounded-full border px-4 py-2 text-sm font-semibold ${colorClasses[config.color as keyof typeof colorClasses]}`}>
+            {session.role.toUpperCase()}
+          </span>
+          <h1 className="text-3xl font-semibold text-[var(--color-ink)]">{config.title}</h1>
+        </div>
+        <p className="mt-3 text-[var(--color-muted)]">{config.description}</p>
       </div>
 
-      <MobileBottomNav showOwner={session.ownerAccess || session.role === "admin"} />
+      {/* Welcome Card */}
+      <div className="mb-8 rounded-2xl border border-[var(--color-border)] bg-gradient-to-r from-[var(--color-surface)] to-white p-6">
+        <h2 className="text-xl font-semibold text-[var(--color-ink)]">
+          Welcome back, {session.name}!
+        </h2>
+        <p className="mt-2 text-sm text-[var(--color-muted)]">
+          {session.email}
+        </p>
+      </div>
+
+      {/* Quick Actions */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {config.links.map((link) => (
+          <Link
+            key={link.href}
+            href={link.href}
+            className="rounded-xl border border-[var(--color-border)] bg-white p-6 transition hover:border-[var(--color-accent)] hover:shadow-md"
+          >
+            <h3 className="text-lg font-semibold text-[var(--color-ink)]">{link.label}</h3>
+            <p className="mt-2 text-sm text-[var(--color-muted)]">Click to access</p>
+          </Link>
+        ))}
+      </div>
+
+      {/* Sign Out */}
+      <div className="mt-8">
+        <form action="/login" method="get">
+          <Button type="submit" variant="secondary">
+            Sign Out
+          </Button>
+        </form>
+      </div>
     </main>
   );
 }

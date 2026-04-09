@@ -31,9 +31,14 @@ export default async function OwnerAccessPage() {
         <div className="mt-8">
           <OwnerAccessForm
             labels={{
-              ownerEmail: dictionary.auth.ownerEmail,
               accessCode: dictionary.auth.accessCode,
               openOwnerConsole: dictionary.auth.openOwnerConsole,
+              helper:
+                locale === "ar"
+                  ? "أدخل كود المالك فقط، وسيتم فتح لوحة الإدارة العليا مباشرة."
+                  : locale === "tr"
+                    ? "Sadece sahip kodunu girin; sistem sizi dogrudan yonetim paneline alir."
+                    : "Enter the owner code only and the system will open the elevated workspace directly.",
             }}
           />
         </div>
