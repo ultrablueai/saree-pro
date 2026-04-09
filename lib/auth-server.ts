@@ -34,16 +34,16 @@ export async function createUserWithEmailAndPassword(
 
   try {
     await db.run(
-      `INSERT INTO app_users (
+      `INSERT INTO AppUser (
         id,
         email,
         role,
-        full_name,
-        password_hash,
-        is_active,
-        email_verified,
-        created_at,
-        updated_at
+        fullName,
+        passwordHash,
+        isActive,
+        emailVerified,
+        createdAt,
+        updatedAt
       )
       VALUES (?, ?, ?, ?, ?, 1, 0, datetime('now'), datetime('now'))`,
       [userId, email, role, fullName, passwordHash],
@@ -71,11 +71,11 @@ export async function authenticateUser(email: string, password: string) {
       id,
       email,
       role,
-      full_name,
-      password_hash,
-      is_active,
-      email_verified
-    FROM app_users
+      fullName,
+      passwordHash,
+      isActive,
+      emailVerified
+    FROM AppUser
     WHERE lower(email) = lower(?)`,
     [email],
   );
@@ -84,15 +84,15 @@ export async function authenticateUser(email: string, password: string) {
     throw new Error("Invalid email or password.");
   }
 
-  if (!user.is_active) {
+  if (!user.isActive) {
     throw new Error("This account is disabled.");
   }
 
-  if (!user.password_hash) {
+  if (!user.passwordHash) {
     throw new Error("This account does not have a password set.");
   }
 
-  const isValid = await verifyPassword(password, user.password_hash);
+  const isValid = await verifyPassword(password, user.passwordHash);
   if (!isValid) {
     throw new Error("Invalid email or password.");
   }
@@ -101,8 +101,8 @@ export async function authenticateUser(email: string, password: string) {
     id: user.id,
     email: user.email,
     role: user.role,
-    fullName: user.full_name,
-    emailVerified: Boolean(user.email_verified),
+    fullName: user.fullName,
+    emailVerified: Boolean(user.emailVerified),
   };
 }
 
@@ -111,8 +111,8 @@ export async function updateUserPassword(userId: string, newPassword: string) {
   const passwordHash = await hashPassword(newPassword);
 
   await db.run(
-    `UPDATE app_users
-     SET password_hash = ?, updated_at = datetime('now')
+    `UPDATE AppUser
+     SET passwordHash = ?, updatedAt = datetime('now')
      WHERE id = ?`,
     [passwordHash, userId],
   );
@@ -122,8 +122,8 @@ export async function markEmailAsVerified(userId: string) {
   const db = await getDbExecutor();
 
   await db.run(
-    `UPDATE app_users
-     SET email_verified = 1, email_verified_at = datetime('now'), updated_at = datetime('now')
+    `UPDATE AppUser
+     SET emailVerified = 1, emailVerifiedAt = datetime('now'), updatedAt = datetime('now')
      WHERE id = ?`,
     [userId],
   );
@@ -133,7 +133,7 @@ export async function checkIfUserExists(email: string): Promise<boolean> {
   const db = await getDbExecutor();
   const result = await db.get<{ count: number }>(
     `SELECT COUNT(*) as count
-     FROM app_users
+     FROM AppUser
      WHERE lower(email) = lower(?)`,
     [email],
   );

@@ -107,7 +107,7 @@ export async function getUserByRole(role: UserRole) {
   const db = await getDbExecutor();
   return db.get<DbUserRow>(
     `SELECT id, email, role, full_name
-     FROM app_users
+     FROM AppUser
      WHERE role = ?
      ORDER BY created_at ASC
      LIMIT 1`,
@@ -119,7 +119,7 @@ export async function getUserByEmail(email: string) {
   const db = await getDbExecutor();
   return db.get<DbUserRow>(
     `SELECT id, email, role, full_name
-     FROM app_users
+     FROM AppUser
      WHERE lower(email) = lower(?)
      LIMIT 1`,
     [email],
