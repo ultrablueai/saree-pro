@@ -5,6 +5,36 @@ import { getDbExecutor } from '@/lib/db';
 import { randomUUID } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 
+interface CheckoutCartItemRow {
+  id: string;
+  merchant_id: string;
+  menu_item_id: string;
+  menu_item_name: string | null;
+  quantity: number;
+  special_instructions: string | null;
+  selected_options_json: string | null;
+  price_amount: number;
+  currency: string;
+}
+
+interface MerchantPricingRow {
+  delivery_fee_amount: number;
+  minimum_order_amount: number;
+  currency: string;
+}
+
+interface CouponRow {
+  id: string;
+  valid_from: string;
+  valid_until: string | null;
+  usage_limit: number | null;
+  used_count: number;
+  min_order_amount: number;
+  discount_type: 'percentage' | 'fixed';
+  discount_value: number;
+  max_discount_amount: number | null;
+}
+
 export async function createOrder(formData: FormData) {
   const session = await requireSessionUser();
   const db = await getDbExecutor();
@@ -26,7 +56,7 @@ export async function createOrder(formData: FormData) {
      JOIN menu_items mi ON sc.menu_item_id = mi.id
      WHERE sc.user_id = ?`,
     [session.id]
-  ) as any[];
+  ) as CheckoutCartItemRow[];
 
   if (!cartItems || cartItems.length === 0) {
     return { success: false, error: 'Your cart is empty' };
@@ -56,7 +86,7 @@ export async function createOrder(formData: FormData) {
   }, 0);
 
   // Get merchant delivery fee
-  const merchant = await db.get(
+  const merchant = await db.get<MerchantPricingRow>(
     `SELECT delivery_fee_amount, minimum_order_amount, currency FROM merchants WHERE id = ?`,
     [merchantId]
   );
@@ -80,7 +110,7 @@ export async function createOrder(formData: FormData) {
   let couponId: string | null = null;
 
   if (couponCode) {
-    const coupon = await db.get(
+    const coupon = await db.get<CouponRow>(
       `SELECT * FROM coupons WHERE code = ? AND is_active = 1`,
       [couponCode]
     );
@@ -299,12 +329,12 @@ export async function deleteAddress(addressId: string) {
   }
 
   // Check if address is used in orders
-  const orderCount = await db.get(
+  const orderCount = await db.get<{ count: number }>(
     `SELECT COUNT(*) as count FROM orders WHERE delivery_address_id = ?`,
     [addressId]
   );
 
-  if (orderCount?.count > 0) {
+  if ((orderCount?.count ?? 0) > 0) {
     return { success: false, error: 'Cannot delete address used in orders' };
   }
 

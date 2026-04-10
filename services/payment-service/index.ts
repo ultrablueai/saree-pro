@@ -32,9 +32,6 @@ export class PaymentService extends BaseService {
 
   async createPayment(request: CreatePaymentRequest): Promise<ServiceResponse<PaymentTransaction>> {
     return this.withErrorHandling(async () => {
-      // Generate unique transaction ID
-      const transactionId = this.generateTransactionId()
-      
       // Create payment transaction
       const result = await DatabaseService.run(
         `INSERT INTO PaymentTransaction (
@@ -80,7 +77,7 @@ export class PaymentService extends BaseService {
       }
 
       // Simulate payment processing
-      const isSuccessful = await this.simulatePaymentProcessing(transaction)
+      const isSuccessful = await this.simulatePaymentProcessing()
 
       const newStatus = isSuccessful ? 'completed' : 'failed'
       const providerRef = isSuccessful ? `PROV_${Date.now()}` : null
@@ -159,7 +156,7 @@ export class PaymentService extends BaseService {
       }
 
       // Process refund
-      const refundSuccessful = await this.processRefund(transaction)
+      const refundSuccessful = await this.processRefund()
 
       if (refundSuccessful) {
         await DatabaseService.run(
@@ -192,7 +189,7 @@ export class PaymentService extends BaseService {
   }>> {
     return this.withErrorHandling(async () => {
       let whereClause = ''
-      let params: (string | number | boolean | null)[] = []
+      const params: (string | number | boolean | null)[] = []
 
       if (merchantId) {
         whereClause += ' WHERE o.merchantId = ?'
@@ -229,7 +226,7 @@ export class PaymentService extends BaseService {
     })
   }
 
-  private async simulatePaymentProcessing(transaction: Record<string, unknown>): Promise<boolean> {
+  private async simulatePaymentProcessing(): Promise<boolean> {
     // Simulate payment gateway processing
     await new Promise(resolve => setTimeout(resolve, 1000))
     
@@ -237,7 +234,7 @@ export class PaymentService extends BaseService {
     return Math.random() > 0.1
   }
 
-  private async processRefund(transaction: Record<string, unknown>): Promise<boolean> {
+  private async processRefund(): Promise<boolean> {
     // Simulate refund processing
     await new Promise(resolve => setTimeout(resolve, 500))
     

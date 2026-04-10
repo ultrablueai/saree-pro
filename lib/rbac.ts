@@ -49,7 +49,7 @@ export async function requirePermission(permission: Permission) {
   
   const allowedRoles = PERMISSIONS[permission];
   
-  if (!allowedRoles.includes(session.role as any)) {
+  if (!allowedRoles.some((role) => role === session.role)) {
     return NextResponse.json(
       { error: 'Forbidden: insufficient permissions', required: permission, role: session.role },
       { status: 403 }
@@ -74,7 +74,7 @@ export async function requireRole(roles: UserRole[]) {
 
 export function hasPermission(role: UserRole, permission: Permission): boolean {
   const allowedRoles = PERMISSIONS[permission];
-  return allowedRoles.includes(role as any);
+  return allowedRoles.some((allowedRole) => allowedRole === role);
 }
 
 export function hasAnyPermission(role: UserRole, permissions: Permission[]): boolean {
@@ -92,7 +92,7 @@ export function getPermissionCategoryName(permission: string): string {
 
 export function getRole(roleName: string): UserRole | null {
   const validRoles: UserRole[] = ['customer', 'merchant', 'driver', 'admin', 'owner'];
-  return validRoles.includes(roleName as UserRole) ? (roleName as UserRole) : null;
+  return validRoles.some((role) => role === roleName) ? (roleName as UserRole) : null;
 }
 
 export type UserPermission = {

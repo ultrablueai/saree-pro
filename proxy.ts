@@ -4,9 +4,8 @@ import type { NextRequest } from 'next/server';
 const SESSION_COOKIE = 'sareepro_session';
 const LEGACY_SESSION_COOKIE = 'sareepro-session';
 
-// Rate limiting store
 const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
-const RATE_LIMIT_WINDOW = 15 * 60 * 1000; // 15 minutes
+const RATE_LIMIT_WINDOW = 15 * 60 * 1000;
 const RATE_LIMIT_MAX_REQUESTS = 100;
 
 const strictRoutes = {
@@ -20,6 +19,7 @@ function getRateLimitConfig(pathname: string) {
       return config;
     }
   }
+
   return { window: RATE_LIMIT_WINDOW, max: RATE_LIMIT_MAX_REQUESTS };
 }
 
@@ -33,7 +33,7 @@ function checkRateLimit(ip: string, config: { window: number; max: number }) {
   }
 
   record.count += 1;
-  
+
   if (record.count > config.max) {
     return { allowed: false, remaining: 0, retryAfter: Math.ceil((record.resetTime - now) / 1000) };
   }
@@ -44,7 +44,9 @@ function checkRateLimit(ip: string, config: { window: number; max: number }) {
 setInterval(() => {
   const now = Date.now();
   for (const [ip, record] of rateLimitStore.entries()) {
-    if (now > record.resetTime) rateLimitStore.delete(ip);
+    if (now > record.resetTime) {
+      rateLimitStore.delete(ip);
+    }
   }
 }, 10 * 60 * 1000);
 
@@ -59,14 +61,12 @@ function isPathMatch(pathname: string, paths: string[]) {
   return paths.some((path) => pathname === path || pathname.startsWith(`${path}/`));
 }
 
-// Routes that don't require authentication
 const publicRoutes = [
   '/login',
   '/forgot-password',
   '/register',
 ];
 
-// Routes that are always accessible
 const alwaysPublicRoutes = [
   '/',
   '/manifest.ts',
@@ -75,16 +75,12 @@ const alwaysPublicRoutes = [
   '/api/hello',
 ];
 
-// Static assets
 const staticExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.css', '.js', '.ico', '.woff', '.woff2'];
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
 
-  // Get client IP
-  const ip = request.ip || request.headers.get('x-forwarded-for') || 'unknown';
-
-  // Check rate limit for API routes
   if (pathname.startsWith('/api')) {
     const config = getRateLimitConfig(pathname);
     const rateLimit = checkRateLimit(ip, config);
@@ -108,12 +104,10 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // Allow static files
-  if (staticExtensions.some(ext => pathname.endsWith(ext))) {
+  if (staticExtensions.some((ext) => pathname.endsWith(ext))) {
     return NextResponse.next();
   }
 
-  // Allow always public routes
   if (alwaysPublicRoutes.includes(pathname)) {
     const response = NextResponse.next();
     addSecurityHeaders(response);
@@ -122,55 +116,46 @@ export async function middleware(request: NextRequest) {
 
   const hasSession = isAuthenticated(request);
 
-  // Redirect authenticated users away from auth pages
   if (hasSession && isPathMatch(pathname, publicRoutes)) {
     return NextResponse.redirect(new URL('/workspace', request.url));
   }
 
-  // Redirect unauthenticated users to login for protected paths
   if (!hasSession && isPathMatch(pathname, ['/workspace'])) {
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('redirect', pathname);
     return NextResponse.redirect(loginUrl);
   }
 
-  // Check session for protected routes
-  if (!hasSession && !publicRoutes.some(route => pathname.startsWith(route))) {
+  if (!hasSession && !publicRoutes.some((route) => pathname.startsWith(route))) {
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('redirect', pathname);
     return NextResponse.redirect(loginUrl);
   }
 
-  // If has session, validate and add headers
   if (hasSession) {
-    const sessionCookie = request.cookies.get(SESSION_COOKIE)?.value || 
-                          request.cookies.get(LEGACY_SESSION_COOKIE)?.value;
+    const sessionCookie =
+      request.cookies.get(SESSION_COOKIE)?.value ||
+      request.cookies.get(LEGACY_SESSION_COOKIE)?.value;
 
     try {
       const session = JSON.parse(sessionCookie!);
-      
+
       if (!session || !session.id || !session.role) {
         throw new Error('Invalid session');
       }
 
       const response = NextResponse.next();
-
-      // Add role headers
       response.headers.set('x-user-id', session.id);
       response.headers.set('x-user-role', session.role);
       response.headers.set('x-user-email', session.email);
 
-      // Protect owner routes
       if (pathname.startsWith('/owner-access') && !session.ownerAccess) {
         return NextResponse.redirect(new URL('/workspace', request.url));
       }
 
-      // Add security headers
       addSecurityHeaders(response);
-
       return response;
-    } catch (error) {
-      // Invalid session - redirect to login
+    } catch {
       const loginUrl = new URL('/login', request.url);
       loginUrl.searchParams.set('redirect', pathname);
       return NextResponse.redirect(loginUrl);
@@ -208,20 +193,8 @@ function addSecurityHeaders(response: NextResponse) {
   response.headers.delete('x-powered-by');
 }
 
-function addRateLimitHeaders(response: NextResponse, config: any, rateLimit: any) {
-  response.headers.set('X-RateLimit-Limit', String(config.max));
-  response.headers.set('X-RateLimit-Remaining', String(rateLimit.remaining));
-}
-
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public folder
-     */
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 };

@@ -1,6 +1,6 @@
 'use server';
 
-import { hash, compare } from 'bcryptjs';
+import { compare, hash } from 'bcryptjs';
 import { getDbExecutor } from '@/lib/db';
 
 export interface UserProfile {
@@ -9,18 +9,22 @@ export interface UserProfile {
   avatarUrl?: string;
 }
 
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
 export async function updateUserProfile(userId: string, profile: UserProfile) {
   try {
     const db = await getDbExecutor();
-    
+
     await db.run(
       `UPDATE "AppUser" SET "fullName" = ?, phone = ?, "avatarUrl" = ?, "updatedAt" = datetime('now') WHERE id = ?`,
       [profile.fullName, profile.phone || null, profile.avatarUrl || null, userId]
     );
 
     return { success: true };
-  } catch (error: any) {
-    return { error: error.message || 'فشل تحديث الملف الشخصي' };
+  } catch (error: unknown) {
+    return { error: getErrorMessage(error, 'ÙØ´Ù„ ØªØ­Ø¯ÙŠØ« Ø§Ù„Ù…Ù„Ù Ø§Ù„Ø´Ø®ØµÙŠ') };
   }
 }
 
@@ -31,34 +35,30 @@ export async function updateUserPassword(
 ) {
   try {
     const db = await getDbExecutor();
-    
-    // Get current password hash
+
     const user = await db.get<{ passwordHash: string }>(
       `SELECT "passwordHash" FROM "AppUser" WHERE id = ?`,
       [userId]
     );
 
     if (!user || !user.passwordHash) {
-      return { error: 'المستخدم غير موجود' };
+      return { error: 'Ø§Ù„Ù…Ø³ØªØ®Ø¯Ù… ØºÙŠØ± Ù…ÙˆØ¬ÙˆØ¯' };
     }
 
-    // Verify current password
     const isValid = await compare(currentPassword, user.passwordHash);
     if (!isValid) {
-      return { error: 'كلمة المرور الحالية غير صحيحة' };
+      return { error: 'ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ± Ø§Ù„Ø­Ø§Ù„ÙŠØ© ØºÙŠØ± ØµØ­ÙŠØ­Ø©' };
     }
 
-    // Hash new password
     const newHash = await hash(newPassword, 12);
 
-    // Update password
     await db.run(
       `UPDATE "AppUser" SET "passwordHash" = ?, "updatedAt" = datetime('now') WHERE id = ?`,
       [newHash, userId]
     );
 
     return { success: true };
-  } catch (error: any) {
-    return { error: error.message || 'فشل تغيير كلمة المرور' };
+  } catch (error: unknown) {
+    return { error: getErrorMessage(error, 'ÙØ´Ù„ ØªØºÙŠÙŠØ± ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ±') };
   }
 }

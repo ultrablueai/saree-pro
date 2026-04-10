@@ -23,7 +23,7 @@ export interface EscrowTransaction {
   releaseConditions: string[];
   disputeId?: string;
   metadata?: {
-    orderItems?: any[];
+    orderItems?: Array<Record<string, unknown>>;
     deliveryFee?: number;
     serviceFee?: number;
     insurance?: boolean;

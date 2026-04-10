@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { ServiceResponse, GatewayRequest, GatewayResponse } from '../shared/types'
+import { CreateUserRequest, GatewayRequest, User } from '../shared/types'
 import { userService } from '../user-service/fixed-index'
 import { PerformanceMonitor, ErrorReporter } from '../../lib/monitoring'
 import { MetricsCollector } from '../../lib/monitoring'
@@ -124,6 +124,14 @@ export class APIGateway {
     return true
   }
 
+  private getObjectBody<T extends object>(body: unknown): T | null {
+    if (body && typeof body === 'object') {
+      return body as T
+    }
+
+    return null
+  }
+
   // Route handlers
   private async handleUsers(req: GatewayRequest): Promise<NextResponse> {
     if (req.method === 'GET') {
@@ -138,7 +146,12 @@ export class APIGateway {
     }
 
     if (req.method === 'POST') {
-      const result = await userService.createUser(req.body as any)
+      const body = this.getObjectBody<CreateUserRequest>(req.body)
+      if (!body) {
+        return NextResponse.json({ error: 'Invalid user payload' }, { status: 400 })
+      }
+
+      const result = await userService.createUser(body)
       
       return NextResponse.json(result, {
         status: result.success ? 201 : 400
@@ -164,7 +177,12 @@ export class APIGateway {
     }
 
     if (req.method === 'PUT') {
-      const result = await userService.updateUser(userId, req.body as any)
+      const body = this.getObjectBody<Partial<User>>(req.body)
+      if (!body) {
+        return NextResponse.json({ error: 'Invalid user update payload' }, { status: 400 })
+      }
+
+      const result = await userService.updateUser(userId, body)
       
       return NextResponse.json(result, {
         status: result.success ? 200 : 400
@@ -174,17 +192,17 @@ export class APIGateway {
     return NextResponse.json({ error: 'Method not allowed' }, { status: 405 })
   }
 
-  private async handleLogin(req: GatewayRequest): Promise<NextResponse> {
+  private async handleLogin(): Promise<NextResponse> {
     // TODO: Implement authentication
     return NextResponse.json({ error: 'Not implemented' }, { status: 501 })
   }
 
-  private async handleRegister(req: GatewayRequest): Promise<NextResponse> {
+  private async handleRegister(): Promise<NextResponse> {
     // TODO: Implement registration
     return NextResponse.json({ error: 'Not implemented' }, { status: 501 })
   }
 
-  private async handleHealth(req: GatewayRequest): Promise<NextResponse> {
+  private async handleHealth(): Promise<NextResponse> {
     const userHealth = await userService.healthCheck()
     
     return NextResponse.json({

@@ -31,6 +31,17 @@ export interface DeliveryEstimate {
   estimatedFee: number;
 }
 
+export interface NearbyDriver {
+  id: string;
+  user_id: string;
+  full_name: string;
+  phone: string;
+  availability: 'offline' | 'online' | 'busy';
+  current_latitude: number;
+  current_longitude: number;
+  distance: number;
+}
+
 /**
  * Calculate distance between two coordinates using Haversine formula
  */
@@ -95,9 +106,9 @@ export async function geocodeAddress(
 ): Promise<Coordinates | null> {
   // TODO: Integrate with Google Maps Geocoding API
   // For now, return mock coordinates
-  
-  const address = `${street}, ${district ? district + ', ' : ''}${city}`;
-  
+  void street;
+  void district;
+
   // Mock implementation - replace with actual API call
   const mockCoordinates: Record<string, Coordinates> = {
     'riyadh': { latitude: 24.7136, longitude: 46.6753 },
@@ -116,6 +127,7 @@ export async function reverseGeocode(
   coordinates: Coordinates
 ): Promise<string | null> {
   // TODO: Integrate with Google Maps Reverse Geocoding API
+  void coordinates;
   return null;
 }
 
@@ -192,7 +204,7 @@ export async function getNearbyDrivers(
   location: Coordinates,
   radiusKm: number = 5,
   maxDrivers: number = 10
-): Promise<any[]> {
+): Promise<NearbyDriver[]> {
   const db = await getDbExecutor();
 
   // Get all online drivers
@@ -203,14 +215,14 @@ export async function getNearbyDrivers(
      WHERE dp.availability = 'online'
      AND dp.current_latitude IS NOT NULL
      AND dp.current_longitude IS NOT NULL`
-  );
+  ) as Array<Omit<NearbyDriver, 'distance'>>;
 
   // Filter by distance and sort
-  const driversWithDistance = (drivers as any[])
+  const driversWithDistance = drivers
     .map(driver => {
       const driverCoords = {
-        latitude: driver.current_latitude,
-        longitude: driver.current_longitude,
+        latitude: Number(driver.current_latitude),
+        longitude: Number(driver.current_longitude),
       };
       const distance = calculateDistance(location, driverCoords);
       return { ...driver, distance };

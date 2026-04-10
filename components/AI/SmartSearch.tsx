@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { getGeminiAIService, type SmartSearchFilters, type SmartSearchResult } from '../../lib/gemini-ai';
@@ -50,34 +50,7 @@ export function SmartSearch({
   const searchRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      const trimmed = query.trim();
-      if (!trimmed) {
-        setResults(null);
-        setShowResults(false);
-        setIsLoading(false);
-        return;
-      }
-
-      void performSearch(trimmed);
-    }, 300);
-
-    return () => window.clearTimeout(timer);
-  }, [query, filters]);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
-        setShowResults(false);
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  async function performSearch(searchQuery: string) {
+  const performSearch = useCallback(async (searchQuery: string) => {
     setIsLoading(true);
     setShowResults(true);
 
@@ -95,7 +68,34 @@ export function SmartSearch({
     } finally {
       setIsLoading(false);
     }
-  }
+  }, [filters]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const trimmed = query.trim();
+      if (!trimmed) {
+        setResults(null);
+        setShowResults(false);
+        setIsLoading(false);
+        return;
+      }
+
+      void performSearch(trimmed);
+    }, 300);
+
+    return () => window.clearTimeout(timer);
+  }, [performSearch, query]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setShowResults(false);
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   function handleResultClick(result: SmartSearchResult['results'][number]) {
     onResultSelect?.(result);

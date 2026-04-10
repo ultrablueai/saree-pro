@@ -1,20 +1,17 @@
+import { execSync } from 'node:child_process';
 import { hash } from 'bcryptjs';
 
 const BCRYPT_ROUNDS = 12;
 
 async function seed() {
-  console.log('🌱 Starting seed...');
+  console.log('ðŸŒ± Starting seed...');
 
-  // Hash passwords for demo users
   const demoPassword = 'demo123';
   const hashedPassword = await hash(demoPassword, BCRYPT_ROUNDS);
 
-  console.log('✅ Password hashed successfully');
+  console.log('âœ… Password hashed successfully');
   console.log('Hash:', hashedPassword);
 
-  // Update existing users with hashed passwords
-  const { execSync } = require('child_process');
-  
   try {
     execSync(`npx prisma db execute --stdin`, {
       input: `
@@ -25,16 +22,16 @@ async function seed() {
       `,
       stdio: 'pipe',
     });
-    
-    console.log('✅ Updated demo users with hashed passwords');
+
+    console.log('âœ… Updated demo users with hashed passwords');
   } catch (error) {
-    console.error('❌ Error updating users:', error);
+    console.error('âŒ Error updating users:', error);
   }
 }
 
 seed()
-  .catch((e) => {
-    console.error(e);
+  .catch((error) => {
+    console.error(error);
     process.exit(1);
   })
   .finally(async () => {

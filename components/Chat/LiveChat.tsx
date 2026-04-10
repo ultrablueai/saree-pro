@@ -1,16 +1,16 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import Image from 'next/image';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { 
   PaperAirplaneIcon, 
   PaperClipIcon, 
-  FaceSmileIcon,
   PhotoIcon,
   MapPinIcon,
   EllipsisVerticalIcon
 } from '@heroicons/react/24/outline';
 import { useLocalization } from '../../hooks/useLocalization';
-import { chatService, ChatMessage, ChatRoom, TypingIndicator } from '../../lib/chat';
+import { chatService, ChatMessage, TypingIndicator } from '../../lib/chat';
 import { GlassPanel } from '../PremiumUI/GlassPanel';
 import { PremiumButton } from '../PremiumUI/PremiumButton';
 import { cn } from '../../lib/utils';
@@ -28,7 +28,6 @@ export function LiveChat({ roomId, className = '', onMessageSend }: LiveChatProp
   const [isTyping, setIsTyping] = useState(false);
   const [typingIndicators, setTypingIndicators] = useState<TypingIndicator[]>([]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showActions, setShowActions] = useState(false);
   
   const { t, isRTL } = useLocalization();
@@ -36,20 +35,7 @@ export function LiveChat({ roomId, className = '', onMessageSend }: LiveChatProp
   const fileInputRef = useRef<HTMLInputElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout>();
 
-  useEffect(() => {
-    loadMessages();
-    setupTypingListener();
-    
-    return () => {
-      cleanupTypingListener();
-    };
-  }, [roomId]);
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  const loadMessages = async () => {
+  const loadMessages = useCallback(async () => {
     try {
       setIsLoading(true);
       const roomMessages = await chatService.getRoomMessages(roomId);
@@ -59,16 +45,21 @@ export function LiveChat({ roomId, className = '', onMessageSend }: LiveChatProp
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [roomId]);
 
-  const setupTypingListener = () => {
+  const setupTypingListener = useCallback(() => {
     const indicators = chatService.getTypingIndicators(roomId);
     setTypingIndicators(indicators);
-  };
+  }, [roomId]);
 
-  const cleanupTypingListener = () => {
-    // Cleanup listener if needed
-  };
+  useEffect(() => {
+    void loadMessages();
+    setupTypingListener();
+  }, [loadMessages, setupTypingListener]);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -124,11 +115,6 @@ export function LiveChat({ roomId, className = '', onMessageSend }: LiveChatProp
     if (file) {
       setSelectedFile(file);
     }
-  };
-
-  const handleEmojiSelect = (emoji: string) => {
-    setNewMessage(prev => prev + emoji);
-    setShowEmojiPicker(false);
   };
 
   const handleLocationShare = async () => {
@@ -205,10 +191,13 @@ export function LiveChat({ roomId, className = '', onMessageSend }: LiveChatProp
             )}
             
             {message.type === 'image' && (
-              <img
-                src={message.metadata?.fileName}
+              <Image
+                src={message.metadata?.url || message.metadata?.fileName || '/favicon.ico'}
                 alt="Shared image"
-                className="rounded-lg max-w-full h-auto"
+                width={320}
+                height={200}
+                unoptimized
+                className="h-auto max-w-full rounded-lg"
               />
             )}
             

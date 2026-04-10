@@ -7,7 +7,7 @@ import { getRequestI18n } from "@/lib/i18n-server";
 
 export default async function WalletPage() {
   const session = await requireSessionUser();
-  const { dictionary } = await getRequestI18n();
+  await getRequestI18n();
 
   return (
     <main className="app-shell mx-auto min-h-screen w-full max-w-7xl px-4 pb-28 pt-5 sm:px-8 sm:pt-8">

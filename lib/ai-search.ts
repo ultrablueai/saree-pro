@@ -32,12 +32,48 @@ export interface SearchFilters {
   sortBy?: 'relevance' | 'rating' | 'delivery_time' | 'price';
 }
 
+interface SearchMatch {
+  exact_match: boolean;
+  starts_with: boolean;
+  contains: boolean;
+  fuzzy_match?: boolean;
+  rating?: number | null;
+  order_count?: number | null;
+  delivery_fee_amount?: number | null;
+}
+
+interface MerchantSearchRow {
+  id: string;
+  name: string;
+  description?: string;
+  image_url?: string;
+  rating?: number;
+  delivery_fee_amount?: number;
+  currency?: string;
+  order_count: number;
+}
+
+interface MenuItemSearchRow {
+  id: string;
+  name: string;
+  description?: string;
+  image_url?: string;
+  price_amount?: number;
+  currency?: string;
+  merchant_name: string;
+  merchant_rating?: number;
+  order_count: number;
+}
+
+interface SearchSuggestionRow {
+  name: string;
+}
+
 /**
  * Calculate search relevance score
  */
 function calculateRelevanceScore(
-  match: any,
-  type: 'merchant' | 'menuItem',
+  match: SearchMatch,
   filters: SearchFilters
 ): number {
   let score = 0;
@@ -59,11 +95,11 @@ function calculateRelevanceScore(
   }
 
   // Apply filters
-  if (filters.minRating && match.rating < filters.minRating) {
+  if (filters.minRating && (match.rating ?? 0) < filters.minRating) {
     score *= 0.5; // Reduce score for items below min rating
   }
 
-  if (filters.maxDeliveryFee && match.delivery_fee_amount > filters.maxDeliveryFee) {
+  if (filters.maxDeliveryFee && (match.delivery_fee_amount ?? 0) > filters.maxDeliveryFee) {
     score *= 0.7; // Reduce score for high delivery fees
   }
 
@@ -82,7 +118,7 @@ export async function searchPlatform(
 
   if (!query || query.trim().length === 0) {
     // Return popular items when no query
-    return await getPopularItems(filters);
+    return await getPopularItems();
   }
 
   const searchQuery = query.toLowerCase().trim();
@@ -111,9 +147,9 @@ export async function searchPlatform(
      ORDER BY m.rating DESC, order_count DESC
      LIMIT 20`,
     [`%${searchQuery}%`, `%${searchQuery}%`, `%${searchQuery}%`]
-  );
+  ) as MerchantSearchRow[];
 
-  for (const merchant of merchants as any[]) {
+  for (const merchant of merchants) {
     const isExact = merchant.name.toLowerCase() === searchQuery;
     const isStartsWith = merchant.name.toLowerCase().startsWith(searchQuery);
     const contains = merchant.name.toLowerCase().includes(searchQuery);
@@ -127,7 +163,6 @@ export async function searchPlatform(
         order_count: merchant.order_count,
         delivery_fee_amount: merchant.delivery_fee_amount,
       },
-      'merchant',
       filters
     );
 
@@ -169,9 +204,9 @@ export async function searchPlatform(
      ORDER BY mi.sort_order ASC, order_count DESC
      LIMIT 30`,
     [`%${searchQuery}%`, `%${searchQuery}%`]
-  );
+  ) as MenuItemSearchRow[];
 
-  for (const item of menuItems as any[]) {
+  for (const item of menuItems) {
     const isExact = item.name.toLowerCase() === searchQuery;
     const isStartsWith = item.name.toLowerCase().startsWith(searchQuery);
     const contains = item.name.toLowerCase().includes(searchQuery);
@@ -184,7 +219,6 @@ export async function searchPlatform(
         rating: item.merchant_rating,
         order_count: item.order_count,
       },
-      'menuItem',
       filters
     );
 
@@ -228,7 +262,7 @@ export async function searchPlatform(
 /**
  * Get popular items (when no search query)
  */
-async function getPopularItems(filters: SearchFilters): Promise<SearchResult[]> {
+async function getPopularItems(): Promise<SearchResult[]> {
   const db = await getDbExecutor();
   const results: SearchResult[] = [];
 
@@ -249,9 +283,9 @@ async function getPopularItems(filters: SearchFilters): Promise<SearchResult[]> 
      GROUP BY m.id
      ORDER BY order_count DESC, m.rating DESC
      LIMIT 10`
-  );
+  ) as MerchantSearchRow[];
 
-  for (const merchant of merchants as any[]) {
+  for (const merchant of merchants) {
     results.push({
       type: 'merchant',
       id: merchant.id,
@@ -260,7 +294,7 @@ async function getPopularItems(filters: SearchFilters): Promise<SearchResult[]> 
       imageUrl: merchant.image_url,
       rating: merchant.rating,
       currency: merchant.currency,
-      score: merchant.order_count + (merchant.rating * 10),
+      score: merchant.order_count + ((merchant.rating ?? 0) * 10),
     });
   }
 
@@ -292,9 +326,9 @@ export async function getSearchSuggestions(
      ORDER BY m.rating DESC
      LIMIT ?`,
     [`%${searchQuery}%`, limit]
-  );
+  ) as SearchSuggestionRow[];
 
-  for (const merchant of merchants as any[]) {
+  for (const merchant of merchants) {
     suggestions.add(merchant.name);
   }
 
@@ -309,9 +343,9 @@ export async function getSearchSuggestions(
      ORDER BY mi.sort_order ASC
      LIMIT ?`,
     [`%${searchQuery}%`, limit]
-  );
+  ) as SearchSuggestionRow[];
 
-  for (const item of items as any[]) {
+  for (const item of items) {
     suggestions.add(item.name);
   }
 

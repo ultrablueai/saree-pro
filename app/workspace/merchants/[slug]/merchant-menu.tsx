@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/Button";
 
@@ -55,9 +56,12 @@ export function MerchantMenu({ merchant, menuItems }: MerchantMenuProps) {
                   >
                     <div className="h-24 w-24 flex-shrink-0 overflow-hidden rounded-[1rem]">
                       {item.imageUrl ? (
-                        <img
+                        <Image
                           src={item.imageUrl}
                           alt={item.name}
+                          width={96}
+                          height={96}
+                          unoptimized
                           className="h-full w-full object-cover"
                         />
                       ) : (

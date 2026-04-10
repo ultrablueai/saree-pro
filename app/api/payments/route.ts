@@ -1,11 +1,18 @@
 import { NextResponse } from 'next/server';
 import {
   createPaymentIntent,
-  confirmPayment,
-  refundPayment,
   getPaymentHistory,
+  type PaymentIntent,
 } from '@/lib/payment-gateway';
 import { getSessionUser } from '@/lib/auth';
+
+interface CreatePaymentRequestBody {
+  orderId?: string;
+  amount?: number;
+  currency?: string;
+  paymentMethod?: PaymentIntent['paymentMethod'];
+  metadata?: Record<string, unknown>;
+}
 
 /**
  * POST /api/payments/create
@@ -19,10 +26,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await request.json();
+    const body = (await request.json()) as CreatePaymentRequestBody;
     const { orderId, amount, currency, paymentMethod, metadata } = body;
 
-    if (!orderId || !amount || !paymentMethod) {
+    if (!orderId || typeof amount !== 'number' || !paymentMethod) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }

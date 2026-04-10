@@ -8,10 +8,10 @@ interface AuthUserRow {
   id: string;
   email: string;
   role: string;
-  full_name: string;
-  password_hash: string | null;
-  is_active: number | boolean;
-  email_verified: number | boolean;
+  fullName: string;
+  passwordHash: string | null;
+  isActive: number | boolean;
+  emailVerified: number | boolean;
 }
 
 export async function hashPassword(password: string): Promise<string> {

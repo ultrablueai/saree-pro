@@ -1,5 +1,5 @@
 import { BaseService } from '../shared/base-service'
-import { Order, CreateOrderRequest, OrderItem, ServiceResponse } from '../shared/types'
+import { Order, CreateOrderRequest, ServiceResponse } from '../shared/types'
 import { cache } from '../../lib/redis'
 import { DatabaseService } from '../shared/database'
 

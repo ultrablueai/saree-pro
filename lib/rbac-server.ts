@@ -1,5 +1,6 @@
 import { getDbExecutor } from "@/lib/db";
-import { createUserPermissionSnapshot, type UserPermission, type UserRole } from "@/lib/rbac";
+import { createUserPermissionSnapshot, type UserPermission } from "@/lib/rbac";
+import type { UserRole } from "@/types";
 
 interface AccessUserRow {
   id: string;
@@ -14,7 +15,7 @@ function normalizeUserRole(role: string): UserRole {
     return role;
   }
 
-  return "support";
+  return "customer";
 }
 
 export async function listAccessUsers() {
@@ -34,7 +35,7 @@ export async function listAccessUsers() {
   }));
 }
 
-export async function getUserPermissionSnapshot(userId: string): Promise<UserPermission | null> {
+export async function getUserPermissionSnapshot(userId: string): Promise<UserPermission[] | null> {
   const db = await getDbExecutor();
   const row = await db.get<AccessUserRow>(
     `SELECT id, email, role, full_name, created_at
@@ -49,13 +50,5 @@ export async function getUserPermissionSnapshot(userId: string): Promise<UserPer
   }
 
   const normalizedRole = normalizeUserRole(row.role);
-  const restrictions =
-    normalizedRole === "admin"
-      ? {
-          canAccessAllMerchants: true,
-          canAccessAllOrders: true,
-        }
-      : undefined;
-
-  return createUserPermissionSnapshot(row.id, normalizedRole, [], restrictions);
+  return createUserPermissionSnapshot(normalizedRole);
 }

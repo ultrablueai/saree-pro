@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { StarIcon, ClockIcon, CurrencyDollarIcon } from '@heroicons/react/24/outline';
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid';
 import type { MerchantSearchResult } from '@/lib/merchant-search';
@@ -79,11 +80,14 @@ function MerchantCard({ merchant }: { merchant: MerchantSearchResult }) {
         {/* Image */}
         <div className="md:w-64 h-48 relative">
           {merchant.coverImageUrl ? (
-            <img
-              src={merchant.coverImageUrl}
-              alt={merchant.name}
-              className="w-full h-full object-cover"
-            />
+              <Image
+                src={merchant.coverImageUrl}
+                alt={merchant.name}
+                fill
+                sizes="(min-width: 768px) 256px, 100vw"
+                unoptimized
+                className="object-cover"
+              />
           ) : (
             <div className="w-full h-full bg-gradient-to-br from-[#d66b42] to-[#b85a35] flex items-center justify-center">
               <span className="text-white text-6xl">🍽️</span>

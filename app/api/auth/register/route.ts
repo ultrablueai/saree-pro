@@ -3,30 +3,49 @@ import { createUserWithEmailAndPassword } from '@/lib/auth-server';
 import { setSessionUser, toSessionUser } from '@/lib/auth';
 import type { UserRole } from '@/types';
 
+const userRoles = ['customer', 'merchant', 'driver', 'admin', 'owner'] as const;
+
+interface RegisterRequestBody {
+  email?: string;
+  password?: string;
+  fullName?: string;
+  role?: string;
+}
+
+function isUserRole(role: string): role is UserRole {
+  return userRoles.includes(role as (typeof userRoles)[number]);
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const body = (await request.json()) as RegisterRequestBody;
     const { email, password, fullName, role } = body;
 
     if (!email || !password || !fullName) {
       return NextResponse.json(
-        { error: 'جميع الحقول مطلوبة' },
+        { error: 'Ø¬Ù…ÙŠØ¹ Ø§Ù„Ø­Ù‚ÙˆÙ„ Ù…Ø·Ù„ÙˆØ¨Ø©' },
         { status: 400 }
       );
     }
 
     if (password.length < 6) {
       return NextResponse.json(
-        { error: 'كلمة المرور يجب أن تكون 6 أحرف على الأقل' },
+        { error: 'ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ± ÙŠØ¬Ø¨ Ø£Ù† ØªÙƒÙˆÙ† 6 Ø£Ø­Ø±Ù Ø¹Ù„Ù‰ Ø§Ù„Ø£Ù‚Ù„' },
         { status: 400 }
       );
     }
+
+    const selectedRole: UserRole = role && isUserRole(role) ? role : 'customer';
 
     const newUser = await createUserWithEmailAndPassword(
       email,
       password,
       fullName,
-      role || 'customer'
+      selectedRole
     );
 
     const sessionUser = toSessionUser({
@@ -47,9 +66,9 @@ export async function POST(request: Request) {
         fullName: newUser.fullName,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json(
-      { error: error.message || 'فشل إنشاء الحساب' },
+      { error: getErrorMessage(error, 'ÙØ´Ù„ Ø¥Ù†Ø´Ø§Ø¡ Ø§Ù„Ø­Ø³Ø§Ø¨') },
       { status: 400 }
     );
   }

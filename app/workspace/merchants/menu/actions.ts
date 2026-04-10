@@ -4,12 +4,16 @@ import { requireRole } from '@/lib/auth';
 import { getDbExecutor } from '@/lib/db';
 import { revalidatePath } from 'next/cache';
 
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
 export async function createMenuItem(formData: FormData) {
   const session = await requireRole(['merchant', 'admin', 'owner']);
   const db = await getDbExecutor();
 
   // Get merchant ID
-  const merchant = await db.get(
+  const merchant = await db.get<{ id: string }>(
     `SELECT id FROM merchants WHERE owner_user_id = ?`,
     [session.id]
   );
@@ -49,7 +53,7 @@ export async function updateMenuItem(itemId: string, formData: FormData) {
   const db = await getDbExecutor();
 
   // Verify ownership
-  const merchant = await db.get(
+  const merchant = await db.get<{ id: string }>(
     `SELECT m.id FROM merchants m
      JOIN menu_items mi ON m.id = mi.merchant_id
      WHERE m.owner_user_id = ? AND mi.id = ?`,
@@ -86,7 +90,7 @@ export async function deleteMenuItem(itemId: string) {
   const db = await getDbExecutor();
 
   // Verify ownership
-  const merchant = await db.get(
+  const merchant = await db.get<{ id: string }>(
     `SELECT m.id FROM merchants m
      JOIN menu_items mi ON m.id = mi.merchant_id
      WHERE m.owner_user_id = ? AND mi.id = ?`,
@@ -104,10 +108,10 @@ export async function deleteMenuItem(itemId: string) {
 }
 
 export async function toggleMenuItemAvailability(itemId: string) {
-  const session = await requireRole(['merchant', 'admin', 'owner']);
+  await requireRole(['merchant', 'admin', 'owner']);
   const db = await getDbExecutor();
 
-  const item = await db.get(
+  const item = await db.get<{ is_available: number }>(
     `SELECT is_available FROM menu_items WHERE id = ?`,
     [itemId]
   );
@@ -129,7 +133,7 @@ export async function createMenuCategory(formData: FormData) {
   const session = await requireRole(['merchant', 'admin', 'owner']);
   const db = await getDbExecutor();
 
-  const merchant = await db.get(
+  const merchant = await db.get<{ id: string }>(
     `SELECT id FROM merchants WHERE owner_user_id = ?`,
     [session.id]
   );
@@ -153,8 +157,8 @@ export async function createMenuCategory(formData: FormData) {
 
     revalidatePath('/workspace/merchants/menu');
     return { success: true };
-  } catch (error: any) {
-    if (error.message.includes('UNIQUE')) {
+  } catch (error: unknown) {
+    if (getErrorMessage(error, '').includes('UNIQUE')) {
       return { success: false, error: 'Category already exists' };
     }
     return { success: false, error: 'Failed to create category' };
@@ -165,7 +169,7 @@ export async function deleteMenuCategory(categoryId: string) {
   const session = await requireRole(['merchant', 'admin', 'owner']);
   const db = await getDbExecutor();
 
-  const merchant = await db.get(
+  const merchant = await db.get<{ id: string }>(
     `SELECT m.id FROM merchants m
      JOIN menu_categories mc ON m.id = mc.merchant_id
      WHERE m.owner_user_id = ? AND mc.id = ?`,
@@ -177,12 +181,12 @@ export async function deleteMenuCategory(categoryId: string) {
   }
 
   // Check if category has items
-  const itemCount = await db.get(
+  const itemCount = await db.get<{ count: number }>(
     `SELECT COUNT(*) as count FROM menu_items WHERE category_id = ?`,
     [categoryId]
   );
 
-  if (itemCount?.count > 0) {
+  if ((itemCount?.count ?? 0) > 0) {
     return { success: false, error: 'Cannot delete category with existing items' };
   }
 

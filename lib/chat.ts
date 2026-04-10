@@ -15,6 +15,8 @@ export interface ChatMessage {
     fileName?: string;
     fileSize?: number;
     mimeType?: string;
+    url?: string;
+    key?: string;
     location?: {
       lat: number;
       lng: number;
@@ -88,6 +90,28 @@ export interface TypingIndicator {
   status: 'typing' | 'paused';
   timestamp: Date;
 }
+
+type ChatReaction = NonNullable<ChatMessage['reactions']>[number];
+
+type OutboundChatEvent =
+  | { type: 'message'; data: { roomId: string; message: ChatMessage } }
+  | { type: 'create_room'; data: { room: ChatRoom } }
+  | { type: 'join_room'; data: { roomId: string } }
+  | { type: 'leave_room'; data: { roomId: string } }
+  | { type: 'mark_read'; data: { roomId: string; messageIds?: string[] } }
+  | { type: 'typing'; data: TypingIndicator }
+  | { type: 'reaction'; data: { roomId: string; messageId: string; emoji: string } }
+  | { type: 'edit_message'; data: { roomId: string; messageId: string; content: string } }
+  | { type: 'delete_message'; data: { roomId: string; messageId: string } }
+  | { type: 'auth'; data: { userId: string; token: string } };
+
+type ServerChatEvent =
+  | { type: 'message'; data: { roomId: string; message: ChatMessage } }
+  | { type: 'typing'; data: TypingIndicator }
+  | { type: 'reaction'; data: { roomId: string; messageId: string; reaction: ChatReaction } }
+  | { type: 'room_updated'; data: ChatRoom }
+  | { type: 'user_status'; data: { userId: string; isOnline: boolean; lastSeen?: Date } }
+  | { type: string; data?: unknown };
 
 export class ChatService {
   private ws: WebSocket | null = null;
@@ -374,7 +398,7 @@ export class ChatService {
     };
     
     this.ws.onmessage = (event) => {
-      this.handleServerMessage(JSON.parse(event.data));
+      this.handleServerMessage(JSON.parse(event.data) as ServerChatEvent);
     };
     
     this.ws.onclose = () => {
@@ -415,11 +439,11 @@ export class ChatService {
         reject(new Error('WebSocket connection timeout'));
       }, 5000);
 
-      this.ws!.onopen = () => {
+      this.ws!.onopen = async () => {
         clearTimeout(timeout);
         
         // Authenticate
-        this.sendToServer({
+        await this.sendToServer({
           type: 'auth',
           data: {
             userId: this.currentUser!.id,
@@ -435,7 +459,7 @@ export class ChatService {
   /**
    * Handle server messages
    */
-  private handleServerMessage(data: any): void {
+  private handleServerMessage(data: ServerChatEvent): void {
     switch (data.type) {
       case 'message':
         this.handleIncomingMessage(data.data);
@@ -502,7 +526,7 @@ export class ChatService {
   /**
    * Handle reaction
    */
-  private handleReaction(data: { roomId: string; messageId: string; reaction: any }): void {
+  private handleReaction(data: { roomId: string; messageId: string; reaction: ChatReaction }): void {
     const messages = this.messages.get(data.roomId);
     if (messages) {
       const message = messages.find(m => m.id === data.messageId);
@@ -545,7 +569,7 @@ export class ChatService {
   /**
    * Send message to server
    */
-  private async sendToServer(data: any): Promise<void> {
+  private async sendToServer(data: OutboundChatEvent): Promise<void> {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(data));
     } else {

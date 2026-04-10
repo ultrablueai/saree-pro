@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { GatewayRequest } from '../shared/types'
+import {
+  CreateOrderRequest,
+  CreateUserRequest,
+  GatewayRequest,
+  Merchant,
+  Order,
+  User,
+} from '../shared/types'
 import { userService } from '../user-service/fixed-index'
 import { orderService } from '../order-service/index'
 import { merchantService } from '../merchant-service/index'
@@ -150,6 +157,14 @@ export class EnhancedAPIGateway {
     return true
   }
 
+  private getObjectBody<T extends object>(body: unknown): T | null {
+    if (body && typeof body === 'object') {
+      return body as T
+    }
+
+    return null
+  }
+
   // User route handlers
   private async handleUsers(req: GatewayRequest): Promise<NextResponse> {
     if (req.method === 'GET') {
@@ -164,7 +179,12 @@ export class EnhancedAPIGateway {
     }
 
     if (req.method === 'POST') {
-      const result = await userService.createUser(req.body as any)
+      const body = this.getObjectBody<CreateUserRequest>(req.body)
+      if (!body) {
+        return NextResponse.json({ error: 'Invalid user payload' }, { status: 400 })
+      }
+
+      const result = await userService.createUser(body)
       
       return NextResponse.json(result, {
         status: result.success ? 201 : 400
@@ -190,7 +210,12 @@ export class EnhancedAPIGateway {
     }
 
     if (req.method === 'PUT') {
-      const result = await userService.updateUser(userId, req.body as any)
+      const body = this.getObjectBody<Partial<User>>(req.body)
+      if (!body) {
+        return NextResponse.json({ error: 'Invalid user update payload' }, { status: 400 })
+      }
+
+      const result = await userService.updateUser(userId, body)
       
       return NextResponse.json(result, {
         status: result.success ? 200 : 400
@@ -203,7 +228,12 @@ export class EnhancedAPIGateway {
   // Order route handlers
   private async handleOrders(req: GatewayRequest): Promise<NextResponse> {
     if (req.method === 'POST') {
-      const result = await orderService.createOrder(req.body as any)
+      const body = this.getObjectBody<CreateOrderRequest>(req.body)
+      if (!body) {
+        return NextResponse.json({ error: 'Invalid order payload' }, { status: 400 })
+      }
+
+      const result = await orderService.createOrder(body)
       
       return NextResponse.json(result, {
         status: result.success ? 201 : 400
@@ -229,7 +259,12 @@ export class EnhancedAPIGateway {
     }
 
     if (req.method === 'PUT') {
-      const { status } = req.body as any
+      const body = this.getObjectBody<{ status?: Order['status'] }>(req.body)
+      if (!body?.status) {
+        return NextResponse.json({ error: 'Order status is required' }, { status: 400 })
+      }
+
+      const { status } = body
       const result = await orderService.updateOrderStatus(orderId, status)
       
       return NextResponse.json(result, {
@@ -254,7 +289,12 @@ export class EnhancedAPIGateway {
     }
 
     if (req.method === 'POST') {
-      const result = await merchantService.createMerchant(req.body as any)
+      const body = this.getObjectBody<Partial<Merchant>>(req.body)
+      if (!body) {
+        return NextResponse.json({ error: 'Invalid merchant payload' }, { status: 400 })
+      }
+
+      const result = await merchantService.createMerchant(body)
       
       return NextResponse.json(result, {
         status: result.success ? 201 : 400
@@ -301,7 +341,7 @@ export class EnhancedAPIGateway {
   }
 
   // Health check handlers
-  private async handleHealth(req: GatewayRequest): Promise<NextResponse> {
+  private async handleHealth(): Promise<NextResponse> {
     const [userHealth, orderHealth, merchantHealth, paymentHealth, notificationHealth] = await Promise.all([
       userService.healthCheck(),
       orderService.healthCheck(),
@@ -324,7 +364,7 @@ export class EnhancedAPIGateway {
     })
   }
 
-  private async handleDetailedHealth(req: GatewayRequest): Promise<NextResponse> {
+  private async handleDetailedHealth(): Promise<NextResponse> {
     return NextResponse.json({
       gateway: {
         status: 'healthy',
@@ -338,47 +378,47 @@ export class EnhancedAPIGateway {
   }
 
   // Placeholder handlers for other routes
-  private async handleLogin(req: GatewayRequest): Promise<NextResponse> {
+  private async handleLogin(): Promise<NextResponse> {
     return NextResponse.json({ error: 'Not implemented' }, { status: 501 })
   }
 
-  private async handleRegister(req: GatewayRequest): Promise<NextResponse> {
+  private async handleRegister(): Promise<NextResponse> {
     return NextResponse.json({ error: 'Not implemented' }, { status: 501 })
   }
 
-  private async handleCustomerOrders(req: GatewayRequest): Promise<NextResponse> {
+  private async handleCustomerOrders(): Promise<NextResponse> {
     return NextResponse.json({ error: 'Not implemented' }, { status: 501 })
   }
 
-  private async handleMerchantOrders(req: GatewayRequest): Promise<NextResponse> {
+  private async handleMerchantOrders(): Promise<NextResponse> {
     return NextResponse.json({ error: 'Not implemented' }, { status: 501 })
   }
 
-  private async handlePayments(req: GatewayRequest): Promise<NextResponse> {
+  private async handlePayments(): Promise<NextResponse> {
     return NextResponse.json({ error: 'Not implemented' }, { status: 501 })
   }
 
-  private async handlePaymentById(req: GatewayRequest): Promise<NextResponse> {
+  private async handlePaymentById(): Promise<NextResponse> {
     return NextResponse.json({ error: 'Not implemented' }, { status: 501 })
   }
 
-  private async handleProcessPayment(req: GatewayRequest): Promise<NextResponse> {
+  private async handleProcessPayment(): Promise<NextResponse> {
     return NextResponse.json({ error: 'Not implemented' }, { status: 501 })
   }
 
-  private async handleRefundPayment(req: GatewayRequest): Promise<NextResponse> {
+  private async handleRefundPayment(): Promise<NextResponse> {
     return NextResponse.json({ error: 'Not implemented' }, { status: 501 })
   }
 
-  private async handleNotifications(req: GatewayRequest): Promise<NextResponse> {
+  private async handleNotifications(): Promise<NextResponse> {
     return NextResponse.json({ error: 'Not implemented' }, { status: 501 })
   }
 
-  private async handleMarkAsRead(req: GatewayRequest): Promise<NextResponse> {
+  private async handleMarkAsRead(): Promise<NextResponse> {
     return NextResponse.json({ error: 'Not implemented' }, { status: 501 })
   }
 
-  private async handleUnreadCount(req: GatewayRequest): Promise<NextResponse> {
+  private async handleUnreadCount(): Promise<NextResponse> {
     return NextResponse.json({ error: 'Not implemented' }, { status: 501 })
   }
 

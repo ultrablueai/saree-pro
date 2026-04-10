@@ -1,15 +1,31 @@
+import Image from 'next/image';
+import Link from 'next/link';
 import { requireRole } from '@/lib/auth';
 import { getDbExecutor } from '@/lib/db';
-import Link from 'next/link';
+
+interface MerchantIndexRow {
+  id: string;
+  slug: string;
+  name: string;
+  description: string;
+  cover_image_url: string | null;
+  rating: number;
+  avg_rating: number | null;
+  cuisine_tags: string;
+  delivery_fee_amount: number;
+  minimum_order_amount: number;
+  currency: string;
+  total_orders: number;
+}
 
 export default async function MerchantsPage() {
-  const session = await requireRole(['customer', 'admin', 'owner']);
+  await requireRole(['customer', 'admin', 'owner']);
 
   const db = await getDbExecutor();
 
-  // Get all active merchants
-  const merchants = await db.all(`
-    SELECT 
+  const merchants = (await db.all(
+    `
+    SELECT
       m.*,
       u.full_name as owner_name,
       u.email as owner_email,
@@ -22,7 +38,8 @@ export default async function MerchantsPage() {
     WHERE m.status = 'active'
     GROUP BY m.id
     ORDER BY m.rating DESC, m.created_at DESC
-  `);
+  `
+  )) as MerchantIndexRow[];
 
   return (
     <main className="mx-auto max-w-7xl px-6 py-8">
@@ -33,7 +50,6 @@ export default async function MerchantsPage() {
         </p>
       </div>
 
-      {/* Search and Filters */}
       <div className="mb-6 flex flex-col gap-4 sm:flex-row">
         <input
           type="text"
@@ -50,35 +66,31 @@ export default async function MerchantsPage() {
         </select>
       </div>
 
-      {/* Merchants Grid */}
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {merchants && merchants.length > 0 ? (
-          (merchants as any[]).map((merchant) => (
+        {merchants.length > 0 ? (
+          merchants.map((merchant) => (
             <Link
               key={merchant.id}
               href={`/workspace/merchants/${merchant.slug}`}
               className="group rounded-xl border border-[var(--color-border)] bg-white overflow-hidden transition hover:border-[var(--color-accent)] hover:shadow-lg"
             >
-              {/* Cover Image */}
               <div className="relative h-40 bg-gradient-to-br from-[var(--color-surface)] to-[var(--color-border)]">
                 {merchant.cover_image_url ? (
-                  <img
+                  <Image
                     src={merchant.cover_image_url}
                     alt={merchant.name}
-                    className="h-full w-full object-cover"
+                    fill
+                    unoptimized
+                    className="object-cover"
                   />
                 ) : (
-                  <div className="flex h-full items-center justify-center text-6xl">
-                    🏪
-                  </div>
+                  <div className="flex h-full items-center justify-center text-6xl">ðŸª</div>
                 )}
-                {/* Rating Badge */}
                 <div className="absolute right-3 top-3 rounded-full bg-white px-3 py-1 text-sm font-semibold shadow-md">
-                  ⭐ {merchant.avg_rating?.toFixed(1) || merchant.rating.toFixed(1)}
+                  â­ {merchant.avg_rating?.toFixed(1) || merchant.rating.toFixed(1)}
                 </div>
               </div>
 
-              {/* Content */}
               <div className="p-5">
                 <h3 className="text-lg font-semibold text-[var(--color-ink)] group-hover:text-[var(--color-accent-strong)]">
                   {merchant.name}
@@ -86,11 +98,9 @@ export default async function MerchantsPage() {
                 <p className="mt-2 line-clamp-2 text-sm text-[var(--color-muted)]">
                   {merchant.description}
                 </p>
-                
+
                 <div className="mt-4 flex items-center justify-between text-sm">
-                  <span className="text-[var(--color-muted)]">
-                    🍽️ {merchant.cuisine_tags}
-                  </span>
+                  <span className="text-[var(--color-muted)]">ðŸ½ï¸ {merchant.cuisine_tags}</span>
                 </div>
 
                 <div className="mt-3 flex items-center justify-between text-sm">

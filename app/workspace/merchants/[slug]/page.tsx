@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/Button";
 import SurgePricingIndicator from "@/components/SurgePricing/SurgePricingIndicator";
@@ -66,10 +67,14 @@ export default async function MerchantDetailPage({
     <main className="min-h-screen bg-gradient-to-br from-[#f4efe8] to-[#e8ddd0] pb-16">
       <div className="relative h-64 md:h-80">
         {merchant.coverImageUrl ? (
-          <img
+          <Image
             src={merchant.coverImageUrl}
             alt={merchant.name}
-            className="h-full w-full object-cover"
+            fill
+            priority
+            sizes="100vw"
+            unoptimized
+            className="object-cover"
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#d66b42] to-[#b85a35]">

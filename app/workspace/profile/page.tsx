@@ -1,5 +1,4 @@
 import { requireSessionUser } from '@/lib/auth';
-import { redirect } from 'next/navigation';
 import { Button } from '@/components/Button';
 import { signOutAction } from '@/app/login/actions';
 

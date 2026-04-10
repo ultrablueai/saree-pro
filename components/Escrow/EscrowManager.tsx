@@ -1,9 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
   ShieldCheckIcon, 
-  ClockIcon,
   ExclamationTriangleIcon,
   CheckCircleIcon,
   EyeIcon,
@@ -24,22 +23,36 @@ interface EscrowManagerProps {
   className?: string;
 }
 
+type EscrowTab = 'transactions' | 'disputes' | 'settings';
+
+const ESCROW_DISPUTE_REASONS: EscrowDispute['reason'][] = [
+  'item_not_delivered',
+  'item_not_as_described',
+  'damaged_item',
+  'late_delivery',
+  'fraud',
+  'other',
+];
+
+function normalizeDisputeReason(reason: string): EscrowDispute['reason'] {
+  const normalizedReason = reason.trim().toLowerCase().replace(/\s+/g, '_');
+
+  return ESCROW_DISPUTE_REASONS.find(
+    (disputeReason) => disputeReason === normalizedReason
+  ) ?? 'other';
+}
+
 export function EscrowManager({ userId, role, className = '' }: EscrowManagerProps) {
   const [transactions, setTransactions] = useState<EscrowTransaction[]>([]);
   const [disputes, setDisputes] = useState<EscrowDispute[]>([]);
   const [settings, setSettings] = useState<EscrowSettings | null>(null);
-  const [activeTab, setActiveTab] = useState<'transactions' | 'disputes' | 'settings'>('transactions');
+  const [activeTab, setActiveTab] = useState<EscrowTab>('transactions');
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedTransaction, setSelectedTransaction] = useState<EscrowTransaction | null>(null);
   
-  const { t } = useLocalization();
+  useLocalization();
   const formatCurrency = useFormattedCurrency();
 
-  useEffect(() => {
-    loadData();
-  }, [userId, role]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setIsLoading(true);
       
@@ -61,7 +74,11 @@ export function EscrowManager({ userId, role, className = '' }: EscrowManagerPro
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [role, userId]);
+
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
 
   const handleReleaseFunds = async (transactionId: string) => {
     try {
@@ -90,7 +107,7 @@ export function EscrowManager({ userId, role, className = '' }: EscrowManagerPro
         await escrowService.raiseDispute(
           transactionId,
           role === 'buyer' ? 'buyer' : 'seller',
-          reason as any,
+          normalizeDisputeReason(reason),
           description
         );
         await loadData();
@@ -397,7 +414,7 @@ export function EscrowManager({ userId, role, className = '' }: EscrowManagerPro
         ].map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id as any)}
+            onClick={() => setActiveTab(tab.id as EscrowTab)}
             className={cn(
               'flex-1 px-4 py-2 rounded-lg font-medium transition-colors',
               activeTab === tab.id

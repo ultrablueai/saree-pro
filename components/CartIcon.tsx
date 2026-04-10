@@ -1,26 +1,34 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import Image from 'next/image';
 import { ShoppingCartIcon, TrashIcon, PlusIcon, MinusIcon } from '@heroicons/react/24/outline';
 import { getCartByUserId, updateCartItemQuantity, removeFromCart, type CartItem } from '@/lib/cart';
 
 export default function CartIcon({ userId }: { userId: string }) {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isOpen, setIsOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    fetchCart();
-  }, [userId]);
+    let isActive = true;
 
-  const fetchCart = async () => {
-    try {
-      const items = await getCartByUserId(userId);
-      setCartItems(items);
-    } catch (error) {
-      console.error('فشل جلب السلة:', error);
+    async function loadCart() {
+      try {
+        const items = await getCartByUserId(userId);
+        if (isActive) {
+          setCartItems(items);
+        }
+      } catch (error) {
+        console.error('ÙØ´Ù„ Ø¬Ù„Ø¨ Ø§Ù„Ø³Ù„Ø©:', error);
+      }
     }
-  };
+
+    void loadCart();
+
+    return () => {
+      isActive = false;
+    };
+  }, [userId]);
 
   const handleUpdateQuantity = async (menuItemId: string, newQuantity: number) => {
     try {
@@ -35,7 +43,7 @@ export default function CartIcon({ userId }: { userId: string }) {
         );
       }
     } catch (error) {
-      console.error('فشل تحديث الكمية:', error);
+      console.error('ÙØ´Ù„ ØªØ­Ø¯ÙŠØ« Ø§Ù„ÙƒÙ…ÙŠØ©:', error);
     }
   };
 
@@ -44,7 +52,7 @@ export default function CartIcon({ userId }: { userId: string }) {
       await removeFromCart(userId, menuItemId);
       setCartItems(prev => prev.filter(item => item.menuItemId !== menuItemId));
     } catch (error) {
-      console.error('فشل حذف العنصر:', error);
+      console.error('ÙØ´Ù„ Ø­Ø°Ù Ø§Ù„Ø¹Ù†ØµØ±:', error);
     }
   };
 
@@ -68,23 +76,24 @@ export default function CartIcon({ userId }: { userId: string }) {
       {isOpen && (
         <div className="absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
           <div className="p-3 border-b border-gray-200">
-            <h3 className="font-semibold text-gray-900">سلة التسوق</h3>
+            <h3 className="font-semibold text-gray-900">Ø³Ù„Ø© Ø§Ù„ØªØ³ÙˆÙ‚</h3>
           </div>
 
           <div className="max-h-96 overflow-y-auto">
             {cartItems.length === 0 ? (
-              <div className="p-6 text-center text-gray-500">
-                السلة فارغة
-              </div>
+              <div className="p-6 text-center text-gray-500">Ø§Ù„Ø³Ù„Ø© ÙØ§Ø±ØºØ©</div>
             ) : (
               <>
                 {cartItems.map(item => (
                   <div key={item.id} className="p-3 border-b border-gray-100">
                     <div className="flex items-start gap-3">
                       {item.menuItemImageUrl && (
-                        <img
+                        <Image
                           src={item.menuItemImageUrl}
                           alt={item.menuItemName}
+                          width={64}
+                          height={64}
+                          unoptimized
                           className="w-16 h-16 object-cover rounded"
                         />
                       )}
@@ -92,9 +101,9 @@ export default function CartIcon({ userId }: { userId: string }) {
                         <h4 className="text-sm font-medium text-gray-900">{item.menuItemName}</h4>
                         <p className="text-xs text-gray-500">{item.merchantName}</p>
                         <p className="text-sm font-semibold text-gray-900 mt-1">
-                          {(item.menuItemPrice / 100).toFixed(2)} ريال
+                          {(item.menuItemPrice / 100).toFixed(2)} Ø±ÙŠØ§Ù„
                         </p>
-                        
+
                         <div className="flex items-center justify-between mt-2">
                           <div className="flex items-center gap-2">
                             <button
@@ -125,13 +134,13 @@ export default function CartIcon({ userId }: { userId: string }) {
 
                 <div className="p-3 bg-gray-50">
                   <div className="flex items-center justify-between mb-3">
-                    <span className="text-gray-600">المجموع الفرعي:</span>
+                    <span className="text-gray-600">Ø§Ù„Ù…Ø¬Ù…ÙˆØ¹ Ø§Ù„ÙØ±Ø¹ÙŠ:</span>
                     <span className="text-lg font-bold text-gray-900">
-                      {(subtotal / 100).toFixed(2)} ريال
+                      {(subtotal / 100).toFixed(2)} Ø±ÙŠØ§Ù„
                     </span>
                   </div>
                   <button className="w-full bg-[#d66b42] hover:bg-[#b85a35] text-white py-2 rounded-lg font-medium transition-colors">
-                    إتمام الطلب
+                    Ø¥ØªÙ…Ø§Ù… Ø§Ù„Ø·Ù„Ø¨
                   </button>
                 </div>
               </>

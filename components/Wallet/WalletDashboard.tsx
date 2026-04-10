@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   ArrowPathIcon,
   BellAlertIcon,
@@ -42,7 +42,7 @@ export function WalletDashboard({ userId, className = '' }: WalletDashboardProps
   const { t } = useLocalization();
   const formatLocalizedCurrency = useFormattedCurrency();
 
-  const loadWalletData = async () => {
+  const loadWalletData = useCallback(async () => {
     setIsLoading(true);
     setError(null);
 
@@ -61,11 +61,11 @@ export function WalletDashboard({ userId, className = '' }: WalletDashboardProps
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [userId]);
 
   useEffect(() => {
     void loadWalletData();
-  }, [userId]);
+  }, [loadWalletData]);
 
   const currency = wallet?.currency ?? 'SAR';
   const balanceLabel = wallet ? formatLocalizedCurrency(wallet.balance) : formatCurrency(0, currency);

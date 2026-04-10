@@ -9,16 +9,18 @@
  */
 
 import { requireSessionUser } from '@/lib/auth';
-import { getDbExecutor } from '@/lib/db';
+import { getDbExecutor, type DbExecutor } from '@/lib/db';
 import { randomUUID } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
+
+type PaymentMetadata = Record<string, unknown>;
 
 export interface PaymentIntent {
   orderId: string;
   amount: number;
   currency: string;
   paymentMethod: 'cash' | 'card' | 'wallet' | 'split';
-  metadata?: Record<string, any>;
+  metadata?: PaymentMetadata;
 }
 
 export interface PaymentResult {
@@ -27,6 +29,29 @@ export interface PaymentResult {
   providerRef?: string;
   error?: string;
   status: 'pending' | 'processing' | 'completed' | 'failed' | 'refunded';
+  metadata?: PaymentMetadata;
+}
+
+interface PaymentOrderRow {
+  id: string;
+  total_amount: number;
+  currency: string;
+  payment_status: string;
+}
+
+interface WalletRow {
+  id: string;
+  balance: number;
+}
+
+interface PaymentTransactionRow {
+  id: string;
+  order_id: string;
+  provider: string;
+  provider_ref: string | null;
+  amount: number;
+  currency: string;
+  status: PaymentResult['status'];
 }
 
 /**
@@ -37,7 +62,7 @@ export async function createPaymentIntent(payment: PaymentIntent): Promise<Payme
   const db = await getDbExecutor();
 
   // Verify order exists and belongs to user
-  const order = await db.get(
+  const order = await db.get<PaymentOrderRow>(
     `SELECT * FROM orders WHERE id = ? AND customer_id = ?`,
     [payment.orderId, session.id]
   );
@@ -67,10 +92,10 @@ export async function createPaymentIntent(payment: PaymentIntent): Promise<Payme
         return await processWalletPayment(transactionId, order, session.id, db);
       
       case 'card':
-        return await processCardPayment(transactionId, order, payment, db);
+        return await processCardPayment(transactionId, order, db);
       
       case 'split':
-        return await processSplitPayment(transactionId, order, payment, session.id, db);
+        return await processSplitPayment(transactionId, order, session.id, db);
       
       default:
         return { success: false, error: 'Invalid payment method', status: 'failed' };
@@ -90,8 +115,8 @@ export async function createPaymentIntent(payment: PaymentIntent): Promise<Payme
  */
 async function processCashPayment(
   transactionId: string,
-  order: any,
-  db: any
+  order: PaymentOrderRow,
+  db: DbExecutor
 ): Promise<PaymentResult> {
   // Create pending transaction
   await db.run(
@@ -114,12 +139,12 @@ async function processCashPayment(
  */
 async function processWalletPayment(
   transactionId: string,
-  order: any,
+  order: PaymentOrderRow,
   userId: string,
-  db: any
+  db: DbExecutor
 ): Promise<PaymentResult> {
   // Get wallet
-  const wallet = await db.get(
+  const wallet = await db.get<WalletRow>(
     `SELECT * FROM wallets WHERE user_id = ?`,
     [userId]
   );
@@ -181,9 +206,8 @@ async function processWalletPayment(
  */
 async function processCardPayment(
   transactionId: string,
-  order: any,
-  payment: PaymentIntent,
-  db: any
+  order: PaymentOrderRow,
+  db: DbExecutor
 ): Promise<PaymentResult> {
   // TODO: Integrate with Stripe
   // For now, create a pending transaction
@@ -212,13 +236,12 @@ async function processCardPayment(
  */
 async function processSplitPayment(
   transactionId: string,
-  order: any,
-  payment: PaymentIntent,
+  order: PaymentOrderRow,
   userId: string,
-  db: any
+  db: DbExecutor
 ): Promise<PaymentResult> {
   // Get wallet
-  const wallet = await db.get(
+  const wallet = await db.get<WalletRow>(
     `SELECT * FROM wallets WHERE user_id = ?`,
     [userId]
   );
@@ -276,7 +299,7 @@ async function processSplitPayment(
 export async function confirmPayment(transactionId: string): Promise<PaymentResult> {
   const db = await getDbExecutor();
 
-  const transaction = await db.get(
+  const transaction = await db.get<PaymentTransactionRow>(
     `SELECT * FROM payment_transactions WHERE id = ?`,
     [transactionId]
   );
@@ -324,7 +347,7 @@ export async function refundPayment(
     return { success: false, error: 'Unauthorized', status: 'failed' };
   }
 
-  const transaction = await db.get(
+  const transaction = await db.get<PaymentTransactionRow>(
     `SELECT * FROM payment_transactions WHERE id = ?`,
     [transactionId]
   );
@@ -391,7 +414,7 @@ export async function getPaymentHistory(orderId: string) {
   const db = await getDbExecutor();
 
   // Verify access
-  const order = await db.get(
+  const order = await db.get<PaymentOrderRow>(
     `SELECT * FROM orders WHERE id = ? AND customer_id = ?`,
     [orderId, session.id]
   );
@@ -400,7 +423,7 @@ export async function getPaymentHistory(orderId: string) {
     return [];
   }
 
-  const transactions = await db.all(
+  const transactions = await db.all<PaymentTransactionRow>(
     `SELECT * FROM payment_transactions WHERE order_id = ? ORDER BY created_at DESC`,
     [orderId]
   );

@@ -1,23 +1,19 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
   DocumentTextIcon, 
   ShieldCheckIcon,
-  ExclamationTriangleIcon,
   CheckCircleIcon,
   ClockIcon,
-  UploadIcon,
   EyeIcon,
   ArrowDownTrayIcon,
   UserIcon,
-  CarIcon,
-  CreditCardIcon
+  CarIcon
 } from '@heroicons/react/24/outline';
 import { useLocalization } from '../../hooks/useLocalization';
 import { kycService, KYCProfile, KYCDocument } from '../../lib/kyc';
 import { GlassPanel } from '../PremiumUI/GlassPanel';
-import { PremiumButton } from '../PremiumUI/PremiumButton';
 import { cn } from '../../lib/utils';
 
 interface KYCDashboardProps {
@@ -26,21 +22,19 @@ interface KYCDashboardProps {
   className?: string;
 }
 
-export function KYCDashboard({ userId, role, className = '' }: KYCDashboardProps) {
+type KycTab = 'overview' | 'documents' | 'verification' | 'profile';
+
+export function KYCDashboard({ userId, className = '' }: KYCDashboardProps) {
   const [profile, setProfile] = useState<KYCProfile | null>(null);
   const [documents, setDocuments] = useState<KYCDocument[]>([]);
-  const [activeTab, setActiveTab] = useState<'overview' | 'documents' | 'verification' | 'profile'>('overview');
+  const [activeTab, setActiveTab] = useState<KycTab>('overview');
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   
-  const { t } = useLocalization();
+  useLocalization();
 
-  useEffect(() => {
-    loadData();
-  }, [userId]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setIsLoading(true);
       
@@ -57,7 +51,11 @@ export function KYCDashboard({ userId, role, className = '' }: KYCDashboardProps
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [userId]);
+
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
 
   const handleDocumentUpload = async (documentType: KYCDocument['documentType']) => {
     const fileInput = document.createElement('input');
@@ -78,7 +76,7 @@ export function KYCDashboard({ userId, role, className = '' }: KYCDashboardProps
           }
           
           // Upload with progress
-          const document = await kycService.uploadDocument(userId, documentType, file);
+          await kycService.uploadDocument(userId, documentType, file);
           
           // Simulate upload progress
           const progressInterval = setInterval(() => {
@@ -266,7 +264,7 @@ export function KYCDashboard({ userId, role, className = '' }: KYCDashboardProps
         ].map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id as any)}
+            onClick={() => setActiveTab(tab.id as KycTab)}
             className={cn(
               'flex-1 px-4 py-2 rounded-lg font-medium transition-colors',
               activeTab === tab.id

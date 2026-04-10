@@ -1,6 +1,21 @@
 import { requireRole } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { getDbExecutor } from '@/lib/db';
+import Link from 'next/link';
+
+interface MerchantDashboardRow {
+  id: string;
+  name: string;
+  description: string;
+  currency: string;
+}
+
+interface MerchantStatsRow {
+  total_orders: number | null;
+  pending_orders: number | null;
+  confirmed_orders: number | null;
+  total_revenue: number | null;
+}
 
 export default async function MerchantDashboardPage() {
   const session = await requireRole(['merchant', 'admin', 'owner']);
@@ -8,7 +23,7 @@ export default async function MerchantDashboardPage() {
   const db = await getDbExecutor();
 
   // Get merchant data
-  const merchant = await db.get(`
+  const merchant = await db.get<MerchantDashboardRow>(`
     SELECT m.*, u.full_name as owner_name
     FROM merchants m
     JOIN app_users u ON m.owner_user_id = u.id
@@ -20,7 +35,7 @@ export default async function MerchantDashboardPage() {
   }
 
   // Get stats
-  const stats = await db.get(`
+  const stats = await db.get<MerchantStatsRow>(`
     SELECT 
       COUNT(*) as total_orders,
       SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_orders,
@@ -69,7 +84,7 @@ export default async function MerchantDashboardPage() {
 
       {/* Quick Actions */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <a
+        <Link
           href="/workspace/merchants/orders"
           className="rounded-xl border border-[var(--color-border)] bg-white p-6 transition hover:border-[var(--color-accent)] hover:shadow-md"
         >
@@ -77,8 +92,8 @@ export default async function MerchantDashboardPage() {
           <p className="mt-2 text-sm text-[var(--color-muted)]">
             View and process incoming orders
           </p>
-        </a>
-        <a
+        </Link>
+        <Link
           href="/workspace/merchants/menu"
           className="rounded-xl border border-[var(--color-border)] bg-white p-6 transition hover:border-[var(--color-accent)] hover:shadow-md"
         >
@@ -86,8 +101,8 @@ export default async function MerchantDashboardPage() {
           <p className="mt-2 text-sm text-[var(--color-muted)]">
             Update items, prices, and availability
           </p>
-        </a>
-        <a
+        </Link>
+        <Link
           href="/workspace/merchants/settings"
           className="rounded-xl border border-[var(--color-border)] bg-white p-6 transition hover:border-[var(--color-accent)] hover:shadow-md"
         >
@@ -95,7 +110,7 @@ export default async function MerchantDashboardPage() {
           <p className="mt-2 text-sm text-[var(--color-muted)]">
             Configure hours, fees, and appearance
           </p>
-        </a>
+        </Link>
       </div>
     </main>
   );

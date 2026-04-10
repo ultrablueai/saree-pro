@@ -148,7 +148,11 @@ export async function getCartTotal() {
   const session = await requireSessionUser();
   const db = await getDbExecutor();
 
-  const total = await db.get(
+  const total = await db.get<{
+    subtotal: number | null;
+    item_count: number | null;
+    total_quantity: number | null;
+  }>(
     `SELECT 
       SUM(mi.price_amount * sc.quantity) as subtotal,
       COUNT(sc.id) as item_count,

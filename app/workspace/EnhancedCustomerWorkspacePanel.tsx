@@ -170,7 +170,9 @@ export function EnhancedCustomerWorkspacePanel({ data, formatDate }: CustomerWor
             ].map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
+                onClick={() =>
+                  setActiveTab(tab.id as "orders" | "favorites" | "profile" | "notifications")
+                }
                 className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
                   activeTab === tab.id
                     ? "border-blue-500 text-blue-600"
@@ -214,7 +216,7 @@ export function EnhancedCustomerWorkspacePanel({ data, formatDate }: CustomerWor
                 <div className="mb-6">
                   <h3 className="text-lg font-medium text-gray-900 mb-4">Order Tracking</h3>
                   <div className="space-y-3">
-                    {activeOrder.tracking_steps.map((step, index) => (
+                    {activeOrder.tracking_steps.map((step) => (
                       <div key={step.step} className="flex items-center space-x-3">
                         <span className="text-xl">{trackingIcon(step.completed)}</span>
                         <div className="flex-1">

@@ -6,12 +6,18 @@ import { createClient } from '@/lib/supabase-client';
 import { signInAction } from '@/app/login/actions';
 import { Button } from '@/components/Button';
 
+type SignUpRole = 'customer' | 'merchant' | 'driver';
+
+function isSignUpRole(value: string): value is SignUpRole {
+  return value === 'customer' || value === 'merchant' || value === 'driver';
+}
+
 export function SignUpForm() {
   const router = useRouter();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<'customer' | 'merchant' | 'driver'>('customer');
+  const [role, setRole] = useState<SignUpRole>('customer');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const supabase = createClient();
@@ -120,7 +126,11 @@ export function SignUpForm() {
         </span>
         <select
           value={role}
-          onChange={(e) => setRole(e.target.value as any)}
+          onChange={(e) => {
+            if (isSignUpRole(e.target.value)) {
+              setRole(e.target.value);
+            }
+          }}
           className="w-full rounded-2xl border border-[var(--color-border)] bg-white px-4 py-3 text-sm outline-none transition focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[rgba(214,107,66,0.18)]"
         >
           <option value="customer">Customer</option>

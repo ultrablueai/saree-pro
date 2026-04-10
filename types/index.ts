@@ -79,8 +79,13 @@ export interface MenuItem {
   priceAmount: number;
   currency: string;
   isAvailable: boolean;
-  optionGroups: any | null;
+  optionGroups: MenuItemOptionGroup[] | null;
   sortOrder: number;
+}
+
+export interface MenuItemOptionGroup {
+  name: string;
+  options: string[];
 }
 
 export interface MenuCategory {

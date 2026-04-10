@@ -4,7 +4,6 @@ import { cookies } from 'next/headers';
 import { authenticateUser, createUserWithEmailAndPassword } from '@/lib/auth-server';
 import {
   getOwnerAccessCode,
-  getUserByEmail,
   getUserByRole,
   setSessionUser,
   toSessionUser,

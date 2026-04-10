@@ -8,7 +8,6 @@ import {
   getTranslation,
   isRTL,
   languageDirection,
-  languageNames,
   numberFormats,
   translations,
   type Language,
@@ -36,28 +35,30 @@ interface LocalizationProviderProps {
   defaultLang?: Language;
 }
 
+function detectInitialLanguage(defaultLang: Language) {
+  if (typeof window === 'undefined') {
+    return defaultLang;
+  }
+
+  const storedLanguage = localStorage.getItem('saree-language') as Language | null;
+  const browserLanguage = navigator.language.split('-')[0] as Language;
+  return storedLanguage ?? (browserLanguage in translations ? browserLanguage : defaultLanguage);
+}
+
 export function LocalizationProvider({
   children,
   defaultLang = defaultLanguage,
 }: LocalizationProviderProps) {
-  const [language, setLanguageState] = useState<Language>(defaultLang);
+  const [language, setLanguageState] = useState<Language>(() => detectInitialLanguage(defaultLang));
 
   useEffect(() => {
-    const storedLanguage = localStorage.getItem('saree-language') as Language | null;
-    const browserLanguage = navigator.language.split('-')[0] as Language;
-    const detectedLanguage =
-      storedLanguage ?? (browserLanguage in translations ? browserLanguage : defaultLanguage);
-
-    setLanguageState(detectedLanguage);
-    document.documentElement.dir = languageDirection[detectedLanguage];
-    document.documentElement.lang = detectedLanguage;
-  }, []);
+    document.documentElement.dir = languageDirection[language];
+    document.documentElement.lang = language;
+  }, [language]);
 
   function setLanguage(lang: Language) {
     setLanguageState(lang);
     localStorage.setItem('saree-language', lang);
-    document.documentElement.dir = languageDirection[lang];
-    document.documentElement.lang = lang;
   }
 
   const value: LocalizationContextType = {

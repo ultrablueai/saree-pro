@@ -98,7 +98,7 @@ export interface KYCVerification {
   verifiedBy?: string;
   verifiedAt?: Date;
   expiresAt?: Date;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
 }
 
 export interface KYCSettings {

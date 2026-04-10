@@ -3,14 +3,23 @@ import { authenticateUser } from '@/lib/auth-server';
 import { setSessionUser, toSessionUser } from '@/lib/auth';
 import type { UserRole } from '@/types';
 
+interface LoginRequestBody {
+  email?: string;
+  password?: string;
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const body = (await request.json()) as LoginRequestBody;
     const { email, password } = body;
 
     if (!email || !password) {
       return NextResponse.json(
-        { error: 'البريد الإلكتروني وكلمة المرور مطلوبان' },
+        { error: 'Ø§Ù„Ø¨Ø±ÙŠØ¯ Ø§Ù„Ø¥Ù„ÙƒØªØ±ÙˆÙ†ÙŠ ÙˆÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ± Ù…Ø·Ù„ÙˆØ¨Ø§Ù†' },
         { status: 400 }
       );
     }
@@ -35,9 +44,9 @@ export async function POST(request: Request) {
         fullName: user.fullName,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json(
-      { error: error.message || 'فشل تسجيل الدخول' },
+      { error: getErrorMessage(error, 'ÙØ´Ù„ ØªØ³Ø¬ÙŠÙ„ Ø§Ù„Ø¯Ø®ÙˆÙ„') },
       { status: 401 }
     );
   }
